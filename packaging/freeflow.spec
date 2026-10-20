@@ -10,7 +10,7 @@ datas = [
     ('../assets', 'assets'),
 ]
 
-# Hidden imports for cross-platform modules
+# Hidden imports tailored per platform
 hiddenimports = [
     'PyQt6',
     'PyQt6.QtCore',
@@ -19,10 +19,6 @@ hiddenimports = [
     'PyQt6.QtNetwork',
     'pynput',
     'pynput.keyboard',
-    'pynput.keyboard._xorg',
-    'pynput.keyboard._uinput',
-    'pynput.keyboard._win32',
-    'pynput.keyboard._darwin',
     'sounddevice',
     'numpy',
     'scipy',
@@ -32,11 +28,25 @@ hiddenimports = [
     'pyperclip',
     'pyautogui',
     'plyer',
-    'plyer.platforms',
 ]
 
 if sys.platform.startswith('linux'):
-    hiddenimports.extend(['evdev', 'evdev.ecodes'])
+    hiddenimports.extend([
+        'pynput.keyboard._xorg',
+        'pynput.keyboard._uinput',
+        'evdev',
+        'evdev.ecodes',
+    ])
+elif sys.platform == 'win32':
+    hiddenimports.extend([
+        'pynput.keyboard._win32',
+        'plyer.platforms.win.notification',
+    ])
+elif sys.platform == 'darwin':
+    hiddenimports.extend([
+        'pynput.keyboard._darwin',
+        'plyer.platforms.macosx.notification',
+    ])
 
 a = Analysis(
     ['../app.py'],
@@ -56,6 +66,12 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+exe_icon = None
+if sys.platform.startswith('win'):
+    exe_icon = '../assets/icon.ico'
+elif sys.platform == 'darwin':
+    exe_icon = '../assets/icon.png'
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -72,7 +88,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='../assets/icon.png' if not sys.platform.startswith('win') else '../assets/icon.ico',
+    icon=exe_icon,
 )
 
 coll = COLLECT(
@@ -85,3 +101,23 @@ coll = COLLECT(
     upx_exclude=[],
     name='freeflow',
 )
+
+# On macOS, generate native FreeFlow.app bundle
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='FreeFlow.app',
+        icon='../assets/icon.png',
+        bundle_identifier='com.bheeshamks.freeflow',
+        info_plist={
+            'CFBundleName': 'FreeFlow',
+            'CFBundleDisplayName': 'FreeFlow',
+            'CFBundleIdentifier': 'com.bheeshamks.freeflow',
+            'CFBundleVersion': '1.1.0',
+            'CFBundleShortVersionString': '1.1.0',
+            'NSMicrophoneUsageDescription': 'FreeFlow requires microphone access for voice dictation.',
+            'NSAppleEventsUsageDescription': 'FreeFlow requires accessibility control to type transcribed text into active applications.',
+            'LSUIElement': False,
+            'NSHighResolutionCapable': True,
+        }
+    )
