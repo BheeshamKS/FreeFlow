@@ -92,6 +92,25 @@ Runs out of the box with standard user permissions.
 
 ---
 
+## Contributing & Reporting Issues
+
+We welcome community contributions, bug reports, and feedback!
+
+### Reporting a Bug or Requesting a Feature
+1. Head to [GitHub Issues](https://github.com/BheeshamKS/FreeFlow/issues).
+2. Click **New Issue** and select either **Bug Report** or **Feature Request**.
+3. For bugs, please include your OS (distro/version), display session (Wayland/X11), and any relevant lines from your log file (`/tmp/freeflow.log` on Linux/macOS or `%TEMP%\freeflow.log` on Windows).
+
+### Contributing Code
+1. Fork the repository and clone your fork.
+2. Create a feature branch: `git checkout -b feature/my-new-feature`.
+3. Commit your changes: `git commit -m "feat: description of improvement"`.
+4. Push to your fork and submit a Pull Request.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+---
+
 ## License
 
 Released under the [MIT License](LICENSE).
