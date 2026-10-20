@@ -1,6 +1,7 @@
 """
-FreeFlow Linux Text Injector
-Handles robust text injection into the active window across Wayland and X11 sessions.
+FreeFlow Cross-Platform Text Injector
+Handles robust active-window text injection across Linux (Wayland & X11),
+Windows, and macOS.
 Preserves and restores the user's existing clipboard buffer.
 """
 
@@ -11,11 +12,15 @@ import subprocess
 import time
 from typing import Optional
 
+from core.platform import is_linux, is_macos, is_windows
+
 logger = logging.getLogger("FreeFlow.Injector")
 
 
 def is_wayland_session() -> bool:
-    """Detect if current session is running under Wayland."""
+    """Detect if current session is running under Linux Wayland."""
+    if not is_linux():
+        return False
     session = os.environ.get("XDG_SESSION_TYPE", "").lower()
     if "wayland" in session:
         return True
@@ -25,7 +30,7 @@ def is_wayland_session() -> bool:
 
 
 class TextInjector:
-    """Manages active-window text injection using Wayland and X11 tools."""
+    """Manages active-window text injection across Linux, Windows, and macOS."""
 
     def __init__(
         self,
@@ -40,36 +45,193 @@ class TextInjector:
     def inject(self, text: str) -> bool:
         """
         Inject text into the user's active window/cursor position.
-        
-        Attempts Wayland-first methods if in Wayland or tools available,
-        falling back cleanly to X11 methods.
+        Dispatches to the appropriate OS-specific injection strategy.
         """
         if not text:
             logger.warning("Empty text passed for injection.")
             return False
 
-        # Sleep briefly to ensure physical hotkey modifiers (Alt, Ctrl, etc.) have released
+        # Sleep briefly to ensure physical hotkey modifiers (Alt, Ctrl, Super, etc.) have released
         time.sleep(self.inject_delay)
 
+        # 1. Microsoft Windows
+        if is_windows():
+            return self._inject_windows(text)
+
+        # 2. Apple macOS
+        if is_macos():
+            return self._inject_macos(text)
+
+        # 3. Linux (Wayland or X11)
         is_wayland = is_wayland_session()
-        logger.info(f"Injecting {len(text)} characters. Session Wayland={is_wayland}")
+        logger.info(f"Injecting {len(text)} characters on Linux (Wayland={is_wayland}).")
 
         if is_wayland:
-            # Try Wayland first
             if self._inject_wayland(text):
                 return True
             logger.info("Wayland injection unsuccessful, falling back to X11 tools...")
             if self._inject_x11(text):
                 return True
         else:
-            # Try X11 first
             if self._inject_x11(text):
                 return True
             logger.info("X11 injection unsuccessful, attempting Wayland tools fallback...")
             if self._inject_wayland(text):
                 return True
 
-        # Last-resort fallback: pynput controller simulation
+        # Last-resort fallback for Linux: pynput controller simulation
+        return self._inject_pynput_fallback(text)
+
+    def _inject_windows(self, text: str) -> bool:
+        """Inject text on Microsoft Windows using clipboard + Ctrl+V or SendInput."""
+        try:
+            import pyperclip
+        except ImportError:
+            pyperclip = None
+
+        if self.use_clipboard and pyperclip is not None:
+            saved_clipboard: Optional[str] = None
+            if self.restore_clipboard:
+                try:
+                    saved_clipboard = pyperclip.paste()
+                except Exception as e:
+                    logger.debug(f"Could not backup Windows clipboard: {e}")
+
+            try:
+                pyperclip.copy(text)
+                time.sleep(0.05)
+
+                ctrl_v_sent = False
+                # Strategy 1: Win32 native SendInput via ctypes (fastest and cleanest)
+                try:
+                    import ctypes
+                    user32 = ctypes.windll.user32
+                    VK_CONTROL = 0x11
+                    VK_V = 0x56
+                    KEYEVENTF_KEYUP = 0x0002
+                    user32.keybd_event(VK_CONTROL, 0, 0, 0)
+                    user32.keybd_event(VK_V, 0, 0, 0)
+                    user32.keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0)
+                    user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+                    ctrl_v_sent = True
+                except Exception:
+                    pass
+
+                # Strategy 2: pyautogui fallback
+                if not ctrl_v_sent:
+                    try:
+                        import pyautogui
+                        pyautogui.hotkey("ctrl", "v")
+                        ctrl_v_sent = True
+                    except Exception:
+                        pass
+
+                # Strategy 3: pynput keyboard fallback
+                if not ctrl_v_sent:
+                    try:
+                        from pynput.keyboard import Controller, Key
+                        kbd = Controller()
+                        with kbd.pressed(Key.ctrl):
+                            kbd.tap("v")
+                        ctrl_v_sent = True
+                    except Exception:
+                        pass
+
+                if ctrl_v_sent:
+                    logger.info("Injected text successfully via Windows clipboard + Ctrl+V.")
+                    if self.restore_clipboard and saved_clipboard is not None:
+                        time.sleep(0.2)
+                        try:
+                            pyperclip.copy(saved_clipboard)
+                        except Exception as e:
+                            logger.debug(f"Failed to restore Windows clipboard: {e}")
+                    return True
+            except Exception as e:
+                logger.warning(f"Windows clipboard injection failed: {e}")
+
+        # Fallback to direct typing
+        return self._inject_pynput_fallback(text)
+
+    def _inject_macos(self, text: str) -> bool:
+        """Inject text on macOS using clipboard + Cmd+V (AppleScript/pyperclip)."""
+        try:
+            import pyperclip
+        except ImportError:
+            pyperclip = None
+
+        has_pbcopy = shutil.which("pbcopy") is not None
+
+        if self.use_clipboard and (pyperclip is not None or has_pbcopy):
+            saved_clipboard: Optional[str] = None
+            if self.restore_clipboard:
+                if has_pbcopy and shutil.which("pbpaste"):
+                    try:
+                        res = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=1.0)
+                        if res.returncode == 0:
+                            saved_clipboard = res.stdout
+                    except Exception:
+                        pass
+                elif pyperclip is not None:
+                    try:
+                        saved_clipboard = pyperclip.paste()
+                    except Exception:
+                        pass
+
+            try:
+                # Copy to macOS clipboard
+                if has_pbcopy:
+                    proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+                    proc.communicate(input=text.encode("utf-8"), timeout=2.0)
+                elif pyperclip is not None:
+                    pyperclip.copy(text)
+
+                time.sleep(0.06)
+
+                # Send Cmd+V via AppleScript (most reliable on macOS)
+                cmd_v_sent = False
+                if shutil.which("osascript"):
+                    try:
+                        script = 'tell application "System Events" to keystroke "v" using command down'
+                        res = subprocess.run(["osascript", "-e", script], check=True, timeout=2.0)
+                        cmd_v_sent = (res.returncode == 0)
+                    except Exception as e:
+                        logger.debug(f"osascript Cmd+V failed: {e}")
+
+                if not cmd_v_sent:
+                    try:
+                        import pyautogui
+                        pyautogui.hotkey("command", "v")
+                        cmd_v_sent = True
+                    except Exception:
+                        pass
+
+                if not cmd_v_sent:
+                    try:
+                        from pynput.keyboard import Controller, Key
+                        kbd = Controller()
+                        with kbd.pressed(Key.cmd):
+                            kbd.tap("v")
+                        cmd_v_sent = True
+                    except Exception:
+                        pass
+
+                if cmd_v_sent:
+                    logger.info("Injected text successfully via macOS clipboard + Cmd+V.")
+                    if self.restore_clipboard and saved_clipboard is not None:
+                        time.sleep(0.2)
+                        try:
+                            if has_pbcopy:
+                                proc2 = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+                                proc2.communicate(input=saved_clipboard.encode("utf-8"), timeout=1.5)
+                            elif pyperclip is not None:
+                                pyperclip.copy(saved_clipboard)
+                        except Exception:
+                            pass
+                    return True
+            except Exception as e:
+                logger.warning(f"macOS clipboard injection failed: {e}")
+
+        # Fallback to direct typing
         return self._inject_pynput_fallback(text)
 
     def _inject_wayland(self, text: str) -> bool:
@@ -236,7 +398,6 @@ class TextInjector:
         # Strategy 2: Direct typing via xdotool
         if has_xdotool:
             try:
-                # Use --clearmodifiers so keys like Alt don't alter typed characters
                 subprocess.run(
                     ["xdotool", "type", "--clearmodifiers", "--delay", "2", text],
                     check=True,

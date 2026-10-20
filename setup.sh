@@ -14,6 +14,11 @@ CONFIG_DIR="${HOME}/.config/freeflow"
 SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 APPLICATIONS_DIR="${HOME}/.local/share/applications"
 
+# If running on macOS, hand off directly to macOS installer
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    exec "${SCRIPT_DIR}/setup-mac.sh" "$@"
+fi
+
 # Color formatting
 BOLD="\033[1m"
 GREEN="\033[32m"

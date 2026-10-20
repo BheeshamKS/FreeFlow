@@ -19,6 +19,8 @@ from typing import List, Optional
 import numpy as np
 from scipy.io import wavfile
 
+from core.platform import get_audio_temp_path, is_linux, is_macos, is_windows
+
 # Safely attempt sounddevice import (may fail with OSError if PortAudio is not installed)
 try:
     import sounddevice as sd
@@ -60,15 +62,15 @@ class AudioRecorder(QObject):
         self._is_recording = False
         self._start_time = 0.0
 
-        # Subprocess fallback handle (for parecord / arecord)
+        # Subprocess fallback handle (for native recording tools)
         self._subproc: Optional[subprocess.Popen] = None
-        self._subproc_wav_path = "/tmp/freeflow_audio.wav"
+        self._subproc_wav_path = get_audio_temp_path()
 
         # Log backend status
         if sd is not None:
             logger.info("Audio engine: sounddevice (PortAudio) initialized.")
         else:
-            logger.warning("PortAudio not found. Falling back to native Linux recording tools (parecord/arecord).")
+            logger.warning("PortAudio not found. Falling back to native system recording tools.")
 
     @property
     def is_recording(self) -> bool:
@@ -110,47 +112,79 @@ class AudioRecorder(QObject):
     def _start_native_fallback(self) -> bool:
         """Start audio recording via system tools (parecord, arecord, ffmpeg)."""
         cmd = None
+        engine_name = "unknown"
 
-        if shutil.which("parecord"):
-            # PulseAudio / PipeWire native recorder
-            cmd = [
-                "parecord",
-                f"--rate={self.sample_rate}",
-                f"--channels={self.channels}",
-                "--file-format=wav",
-                self._subproc_wav_path
-            ]
-            engine_name = "parecord (PulseAudio/PipeWire)"
-        elif shutil.which("arecord"):
-            # ALSA native recorder
-            cmd = [
-                "arecord",
-                "-q",
-                "-f", "S16_LE",
-                "-r", str(self.sample_rate),
-                "-c", str(self.channels),
-                "-t", "wav",
-                self._subproc_wav_path
-            ]
-            engine_name = "arecord (ALSA)"
-        elif shutil.which("ffmpeg"):
-            # FFmpeg pulse capture
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-f", "pulse",
-                "-i", "default",
-                "-ar", str(self.sample_rate),
-                "-ac", str(self.channels),
-                self._subproc_wav_path
-            ]
-            engine_name = "ffmpeg (pulse)"
+        if is_windows():
+            if shutil.which("ffmpeg"):
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-f", "dshow",
+                    "-i", "audio=virtual-audio-capturer" if os.environ.get("FFMPEG_AUDIO_DEV") else "audio=default",
+                    "-ar", str(self.sample_rate),
+                    "-ac", str(self.channels),
+                    self._subproc_wav_path
+                ]
+                engine_name = "ffmpeg (DirectShow)"
+        elif is_macos():
+            if shutil.which("ffmpeg"):
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-f", "avfoundation",
+                    "-i", ":default",
+                    "-ar", str(self.sample_rate),
+                    "-ac", str(self.channels),
+                    self._subproc_wav_path
+                ]
+                engine_name = "ffmpeg (AVFoundation)"
+        else:
+            # Linux / Unix fallback chain
+            if shutil.which("parecord"):
+                # PulseAudio / PipeWire native recorder
+                cmd = [
+                    "parecord",
+                    f"--rate={self.sample_rate}",
+                    f"--channels={self.channels}",
+                    "--file-format=wav",
+                    self._subproc_wav_path
+                ]
+                engine_name = "parecord (PulseAudio/PipeWire)"
+            elif shutil.which("arecord"):
+                # ALSA native recorder
+                cmd = [
+                    "arecord",
+                    "-q",
+                    "-f", "S16_LE",
+                    "-r", str(self.sample_rate),
+                    "-c", str(self.channels),
+                    "-t", "wav",
+                    self._subproc_wav_path
+                ]
+                engine_name = "arecord (ALSA)"
+            elif shutil.which("ffmpeg"):
+                # FFmpeg pulse capture
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-f", "pulse",
+                    "-i", "default",
+                    "-ar", str(self.sample_rate),
+                    "-ac", str(self.channels),
+                    self._subproc_wav_path
+                ]
+                engine_name = "ffmpeg (pulse)"
 
         if not cmd:
-            err = (
-                "No audio recording tool found. Please install libportaudio2:\n"
-                "  sudo apt install -y libportaudio2 portaudio19-dev"
-            )
+            if is_windows():
+                err = "No audio recording backend found. Please install portaudio or ffmpeg."
+            elif is_macos():
+                err = "No audio recording backend found. Run: brew install portaudio ffmpeg"
+            else:
+                err = (
+                    "No audio recording tool found. Please install libportaudio2:\n"
+                    "  sudo apt install -y libportaudio2 portaudio19-dev"
+                )
             logger.error(err)
             if self.error_occurred:
                 self.error_occurred.emit(err)
@@ -235,7 +269,7 @@ class AudioRecorder(QObject):
             try:
                 audio_data = np.concatenate(self._chunks, axis=0)
                 audio_int16 = (audio_data * 32767.0).clip(-32768, 32767).astype(np.int16)
-                wav_path = "/tmp/freeflow_audio.wav"
+                wav_path = get_audio_temp_path()
                 wavfile.write(wav_path, self.sample_rate, audio_int16)
                 logger.info(f"Recorded {duration:.2f}s audio saved to {wav_path}")
 

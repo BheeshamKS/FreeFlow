@@ -26,6 +26,7 @@ except ImportError:
 
 from core.config import AppConfig
 from core.groq_client import GroqService
+from core.platform import is_linux, is_macos, is_windows, get_platform
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 logger = logging.getLogger("FreeFlow.Onboarding")
@@ -438,13 +439,14 @@ class OnboardingWizard(QDialog):
         layout.setSpacing(20)
 
         # Title
-        t = QLabel("Voice-to-Text Dictation, Built for Linux")
+        plat_title = "macOS" if is_macos() else ("Windows" if is_windows() else "Linux")
+        t = QLabel(f"Voice-to-Text Dictation, Built for {plat_title}")
         t.setStyleSheet("font-size: 22px; font-weight: 700; color: #f4f4f6; letter-spacing: -0.4px;")
         layout.addWidget(t)
 
         sub = QLabel(
-            "FreeFlow brings the effortless voice dictation experience of macOS Wispr Flow and Superwhisper "
-            "to Linux desktops, powered by Groq's ultra-low latency Whisper LPU inference."
+            "FreeFlow brings effortless, instant voice dictation straight to your desktop, "
+            "powered by Groq's ultra-low latency Whisper Large v3 LPU inference."
         )
         sub.setWordWrap(True)
         sub.setStyleSheet("font-size: 13px; color: #8a8f98; line-height: 1.5;")
@@ -463,9 +465,16 @@ class OnboardingWizard(QDialog):
             "Sub-Second Latency (~300ms)",
             "Groq LPUs process your spoken audio in ~300ms, transcribing up to 10× faster than typical cloud speech APIs."
         )
+        if is_macos():
+            inj_desc = "Injects text straight into your cursor across any Mac application via native accessibility paste."
+        elif is_windows():
+            inj_desc = "Injects text straight into your cursor in any application or terminal via native Windows input hooks."
+        else:
+            inj_desc = "Injects text straight into your cursor across Wayland (wl-clipboard/wtype) and X11 (xclip/xdotool)."
+
         c2 = self._build_feature_item(
-            "Universal Linux Injection",
-            "Injects text straight into your cursor across Wayland (wl-clipboard/wtype) and X11 (xclip/xdotool)."
+            "Universal Cursor Injection",
+            inj_desc
         )
         row1.addWidget(c1)
         row1.addWidget(c2)
@@ -855,7 +864,7 @@ class OnboardingWizard(QDialog):
         s3 = QVBoxLayout()
         s3.addWidget(QLabel("STORAGE"))
         s3.itemAt(0).widget().setStyleSheet("font-size: 10px; font-weight: 600; color: #62666d; letter-spacing: 0.8px;")
-        s3.addWidget(QLabel("Local (~/.config)"))
+        s3.addWidget(QLabel("100% Local & Private"))
         s3.itemAt(1).widget().setStyleSheet("font-size: 13px; font-weight: 600; color: #f4f4f6;")
         sc_layout.addLayout(s3)
 

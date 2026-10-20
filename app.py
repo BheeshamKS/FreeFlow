@@ -11,6 +11,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -20,7 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # Setup logging to both console and user log file
-LOG_FILE = "/tmp/freeflow.log"
+LOG_FILE = str(Path(tempfile.gettempdir()) / "freeflow.log")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] (%(name)s) %(message)s",
@@ -75,7 +76,7 @@ class FreeFlowApplication:
             self.app_icon = QIcon(icon_path)
             self.qapp.setWindowIcon(self.app_icon)
 
-        logger.info(f"Initializing FreeFlow Linux v{APP_VERSION}...")
+        logger.info(f"Initializing FreeFlow v{APP_VERSION}...")
 
         # 1. Single Instance Guard
         self.guard = SingleInstanceGuard(self.qapp)

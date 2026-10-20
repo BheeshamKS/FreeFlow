@@ -33,6 +33,7 @@ except ImportError:
 
 from core.config import AppConfig
 from core.history import HistoryManager, HistoryEntry
+from core.platform import is_linux, is_macos, is_windows
 from core.groq_client import GroqService
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
@@ -441,7 +442,8 @@ class MainWindow(QMainWindow):
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #f4f4f6; letter-spacing: -0.3px;")
         brand.addWidget(title)
 
-        tag = QLabel("Linux")
+        plat_tag = "macOS" if is_macos() else ("Windows" if is_windows() else "Linux")
+        tag = QLabel(plat_tag)
         tag.setStyleSheet("font-size: 10px; font-weight: 600; color: #62666d; background: #14161c; border-radius: 4px; padding: 2px 5px; margin-left: 4px;")
         brand.addWidget(tag)
         brand.addStretch()

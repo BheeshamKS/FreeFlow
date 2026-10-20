@@ -20,8 +20,10 @@ except ImportError:
     def pyqtSignal(*args):
         return None
 
+from core.platform import get_history_file
+
 logger = logging.getLogger("FreeFlow.History")
-HISTORY_FILE = Path.home() / ".config" / "freeflow" / "history.json"
+HISTORY_FILE = get_history_file()
 
 
 @dataclass

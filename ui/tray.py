@@ -8,8 +8,11 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
+
+from core.platform import is_linux, is_macos, is_windows
 
 try:
     from PyQt6.QtCore import QObject, pyqtSignal
@@ -181,31 +184,43 @@ class SystemTrayController(QObject):
         expire_ms: int = 3000
     ):
         """
-        Send a desktop notification using notify-send via subprocess.
-        Uses system icon names without emojis as required.
+        Send a desktop notification using plyer, notify-send (Linux), or Qt system tray message.
         """
-        if not shutil.which("notify-send"):
-            # Fallback to Qt tray notification message
-            try:
-                self.tray.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, expire_ms)
-            except Exception:
-                pass
-            return
-
-        cmd = [
-            "notify-send",
-            title,
-            message,
-            "-a", "FreeFlow",
-            "-i", icon,
-            "-u", urgency,
-            "-t", str(expire_ms)
-        ]
-
+        # Strategy 1: plyer (cross-platform)
         try:
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception as e:
-            logger.debug(f"Failed to execute notify-send: {e}")
+            from plyer import notification as plyer_notify
+            plyer_notify.notify(
+                title=title,
+                message=message,
+                app_name="FreeFlow",
+                timeout=int(expire_ms / 1000)
+            )
+            return
+        except Exception:
+            pass
+
+        # Strategy 2: Linux notify-send
+        if is_linux() and shutil.which("notify-send"):
+            cmd = [
+                "notify-send",
+                title,
+                message,
+                "-a", "FreeFlow",
+                "-i", icon,
+                "-u", urgency,
+                "-t", str(expire_ms)
+            ]
+            try:
+                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return
+            except Exception as e:
+                logger.debug(f"Failed to execute notify-send: {e}")
+
+        # Strategy 3: Qt Tray showMessage (universal fallback for Windows, macOS, and Linux)
+        try:
+            self.tray.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, expire_ms)
+        except Exception:
+            pass
 
     def notify_error(self, error_message: str):
         """Show error notification."""
@@ -234,9 +249,9 @@ class SystemTrayController(QObject):
 
     def _on_logs_clicked(self):
         """Open temporary log file or display message box with latest status."""
-        log_path = "/tmp/freeflow.log"
-        content = "No log file found at /tmp/freeflow.log"
-        if os.path.isfile(log_path):
+        log_path = Path(tempfile.gettempdir()) / "freeflow.log"
+        content = f"No log file found at {log_path}"
+        if log_path.is_file():
             try:
                 with open(log_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
