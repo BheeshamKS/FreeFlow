@@ -1,11 +1,13 @@
-# FreeFlow for Linux
+# FreeFlow
 
 <div align="center">
 
-**Sub-second voice dictation for Linux desktops**  
+**Sub-second voice dictation for Linux, Windows, and macOS**  
 *Press a shortcut, speak naturally, and text appears instantly at your cursor.*
 
-[![Linux](https://img.shields.io/badge/Platform-Linux%20(Wayland%20%26%20X11)-10b981?style=flat-square&logo=linux&logoColor=white)](https://kernel.org)
+[![Linux](https://img.shields.io/badge/Platform-Linux-10b981?style=flat-square&logo=linux&logoColor=white)](https://kernel.org)
+[![Windows](https://img.shields.io/badge/Platform-Windows-0078d4?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
+[![macOS](https://img.shields.io/badge/Platform-macOS-000000?style=flat-square&logo=apple&logoColor=white)](https://apple.com)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Groq LPU](https://img.shields.io/badge/Groq%20LPU-Whisper%20Large%20v3-f59e0b?style=flat-square)](https://groq.com)
 [![License](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](LICENSE)
@@ -16,10 +18,10 @@
 
 ## What It Does
 
-FreeFlow is a native voice-to-text dictation application built for Linux. 
+FreeFlow is a high-speed, native voice-to-text dictation application.
 
-- **Instant Dictation (~300ms)**: Press your global shortcut from any app (terminal, code editor, browser, Slack), speak, and text is typed straight into your active cursor.
-- **Wayland & X11 Native**: Seamless cursor injection across modern Wayland compositors (GNOME, KDE, Hyprland, Sway) and X11 sessions.
+- **Instant Dictation (~300ms)**: Press your global shortcut from any app (terminal, IDE, browser, chat), speak, and text is typed straight into your active cursor.
+- **Cross-Platform Native Injection**: Direct active window injection across Linux (Wayland & X11), Windows, and macOS.
 - **Whisper Large v3**: High-accuracy speech recognition powered by Groq's ultra-fast LPUs.
 - **Minimalist HUD**: Floating waveform capsule with real-time audio visualization while speaking.
 - **Private & Lightweight**: 0% idle CPU usage and 100% private local history stored on your device.
@@ -28,8 +30,7 @@ FreeFlow is a native voice-to-text dictation application built for Linux.
 
 ## Requirements
 
-- **OS**: Any modern Linux distribution (Ubuntu/Debian, Arch, Fedora, openSUSE, Void, etc.)
-- **Display**: Wayland or X11
+- **Operating System**: Linux (Wayland or X11), Windows 10/11, or macOS (11.0+)
 - **Python**: 3.10 or higher
 - **Groq API Key**: Free tier available at [console.groq.com/keys](https://console.groq.com/keys)
 - **Microphone**: Working audio input
@@ -38,11 +39,23 @@ FreeFlow is a native voice-to-text dictation application built for Linux.
 
 ## Quick Install
 
-Run this single command in your terminal. The installer automatically detects your distribution, installs required system packages, sets up desktop integration, and launches the setup wizard:
+Choose your platform to install dependencies, set up the desktop launcher, and open the guided setup wizard:
 
+### Linux
 ```bash
 git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup.sh
 ```
+
+### macOS
+```bash
+git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup-mac.sh
+```
+
+### Windows (PowerShell)
+```powershell
+git clone https://github.com/BheeshamKS/FreeFlow.git; cd FreeFlow; .\setup.ps1
+```
+*(Or double-click `setup.bat` after cloning).*
 
 ---
 
@@ -61,14 +74,21 @@ git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup.s
 
 ---
 
-## Troubleshooting
+## Platform Notes & Troubleshooting
 
-### Global Hotkey Permissions
+### Linux (Global Hotkey Permissions)
 Kernel-level global shortcut detection (`evdev`) requires membership in the `input` group:
 ```bash
 sudo usermod -aG input $USER
 ```
-> **Note**: If newly added to the `input` group, **log out and log back in** (or run `newgrp input`) to apply changes.
+> If newly added to the `input` group, log out and log back in to apply changes.
+
+### macOS (Accessibility Permissions)
+macOS requires Accessibility permissions for global shortcut detection and text injection. If prompted, grant permission in:
+> **System Settings → Privacy & Security → Accessibility**
+
+### Windows
+Runs out of the box with standard user permissions.
 
 ---
 

@@ -20,8 +20,10 @@ except ImportError:
         return False
 
 
+from core.platform import get_config_dir
+
 # Standard search locations for .env fallback
-CONFIG_DIR = Path.home() / ".config" / "freeflow"
+CONFIG_DIR = get_config_dir()
 ENV_PATHS = [
     CONFIG_DIR / ".env",
     Path(".env"),

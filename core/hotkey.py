@@ -31,6 +31,7 @@ except ImportError:
         return None
 
 from core.config import AppConfig
+from core.platform import is_linux, is_macos, is_windows
 
 logger = logging.getLogger("FreeFlow.Hotkey")
 
@@ -95,9 +96,9 @@ class HotkeyListener(QThread):
         self._running = True
         logger.info(f"Starting Hotkey listener for '{self.config.get_display_hotkey()}' (mode={self.config.hotkey_mode})")
 
-        # Try evdev first (Wayland & X11 universal)
+        # On Linux, try evdev first (Wayland & X11 kernel-level monitoring)
         evdev_success = False
-        if evdev is not None:
+        if is_linux() and evdev is not None:
             try:
                 evdev_success = self._run_evdev()
             except PermissionError:
@@ -105,13 +106,25 @@ class HotkeyListener(QThread):
             except Exception as e:
                 logger.warning(f"evdev listener failed to initialize: {e}")
 
-        # Fallback to pynput if evdev failed
+        # On Windows, macOS, or Linux without evdev: use pynput
         if not evdev_success and self._running:
-            logger.info("Attempting pynput fallback listener...")
+            logger.info("Starting pynput global keyboard listener...")
             if pynput_keyboard is not None:
-                self._run_pynput()
+                try:
+                    self._run_pynput()
+                except Exception as e:
+                    if is_macos():
+                        err = f"macOS Accessibility permission required: System Settings -> Privacy & Security -> Accessibility ({e})"
+                    else:
+                        err = f"Failed to start keyboard hook: {e}"
+                    logger.error(err)
+                    if self.error_occurred:
+                        self.error_occurred.emit(err)
             else:
-                err = "No functional keyboard listener could be started. Please check /dev/input permissions."
+                if is_linux():
+                    err = "No functional keyboard listener could be started. Please check /dev/input permissions."
+                else:
+                    err = "pynput is not installed. Please install requirements: pip install pynput"
                 logger.error(err)
                 if self.error_occurred:
                     self.error_occurred.emit(err)
@@ -259,12 +272,31 @@ class HotkeyListener(QThread):
 
         # Check modifier
         mod_held = True
-        if "ALT" in mod:
-            mod_held = any(k in current_keys for k in [pynput_keyboard.Key.alt, pynput_keyboard.Key.alt_l, pynput_keyboard.Key.alt_r])
+        if "ALT" in mod or "OPTION" in mod:
+            mod_held = any(k in current_keys for k in [
+                getattr(pynput_keyboard.Key, "alt", None),
+                getattr(pynput_keyboard.Key, "alt_l", None),
+                getattr(pynput_keyboard.Key, "alt_r", None),
+                getattr(pynput_keyboard.Key, "alt_gr", None)
+            ] if k is not None)
         elif "CTRL" in mod:
-            mod_held = any(k in current_keys for k in [pynput_keyboard.Key.ctrl, pynput_keyboard.Key.ctrl_l, pynput_keyboard.Key.ctrl_r])
+            mod_held = any(k in current_keys for k in [
+                getattr(pynput_keyboard.Key, "ctrl", None),
+                getattr(pynput_keyboard.Key, "ctrl_l", None),
+                getattr(pynput_keyboard.Key, "ctrl_r", None)
+            ] if k is not None)
         elif "SHIFT" in mod:
-            mod_held = any(k in current_keys for k in [pynput_keyboard.Key.shift, pynput_keyboard.Key.shift_l, pynput_keyboard.Key.shift_r])
+            mod_held = any(k in current_keys for k in [
+                getattr(pynput_keyboard.Key, "shift", None),
+                getattr(pynput_keyboard.Key, "shift_l", None),
+                getattr(pynput_keyboard.Key, "shift_r", None)
+            ] if k is not None)
+        elif "CMD" in mod or "COMMAND" in mod or "META" in mod or "SUPER" in mod or "WIN" in mod:
+            mod_held = any(k in current_keys for k in [
+                getattr(pynput_keyboard.Key, "cmd", None),
+                getattr(pynput_keyboard.Key, "cmd_l", None),
+                getattr(pynput_keyboard.Key, "cmd_r", None)
+            ] if k is not None)
 
         # Check target key
         is_target = False
@@ -273,6 +305,8 @@ class HotkeyListener(QThread):
                 is_target = True
             elif target_key_char == "space" and key == pynput_keyboard.Key.space:
                 is_target = True
+            elif hasattr(pynput_keyboard.Key, target_key_char):
+                is_target = (key == getattr(pynput_keyboard.Key, target_key_char))
         except Exception:
             pass
 
