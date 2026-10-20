@@ -61,22 +61,6 @@ git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup.s
 
 ---
 
-## Optional: Background Daemon (Autostart)
-
-To have FreeFlow start automatically when you log into your desktop:
-
-```bash
-systemctl --user enable --now freeflow.service
-```
-
-To stop or disable autostart:
-
-```bash
-systemctl --user disable --now freeflow.service
-```
-
----
-
 ## Troubleshooting
 
 ### Global Hotkey Permissions
