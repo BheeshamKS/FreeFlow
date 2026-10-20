@@ -1,0 +1,242 @@
+name: Cross-Platform Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v1.1.0)'
+        required: true
+        default: 'v1.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================================
+  # 1. Linux Packages (.deb, AppImage, tar.gz)
+  # ============================================================================
+  build-linux:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install System Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 portaudio19-dev libnotify-bin xclip xdotool file wget
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Standalone Binary with PyInstaller
+        run: |
+          pyinstaller packaging/freeflow.spec --distpath dist --workpath build -y
+
+      - name: Generate Debian Package (.deb)
+        run: |
+          chmod +x packaging/build_deb.sh
+          ./packaging/build_deb.sh
+
+      - name: Generate AppImage
+        run: |
+          # Download appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          sed -i 's|AI\x02|\x00\x00\x00|' appimagetool || true
+          
+          # Prepare AppDir
+          APPDIR="build/AppDir"
+          mkdir -p "$APPDIR/opt/freeflow" "$APPDIR/usr/bin"
+          cp -r dist/freeflow/* "$APPDIR/opt/freeflow/"
+          
+          # Create AppRun
+          cat << 'EOF' > "$APPDIR/AppRun"
+          #!/bin/sh
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${HERE}/opt/freeflow:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/opt/freeflow:${LD_LIBRARY_PATH}"
+          export PYTHONHOME="${HERE}/opt/freeflow"
+          exec "${HERE}/opt/freeflow/freeflow" "$@"
+          EOF
+          chmod 755 "$APPDIR/AppRun"
+          
+          cp freeflow.desktop "$APPDIR/freeflow.desktop"
+          cp assets/icon.png "$APPDIR/freeflow.png"
+          cp assets/icon.png "$APPDIR/.DirIcon"
+          
+          ./appimagetool "$APPDIR" dist/FreeFlow-x86_64.AppImage || true
+
+      - name: Create Portable Tarball (.tar.gz)
+        run: |
+          cd dist
+          tar -czf FreeFlow-linux-x86_64.tar.gz freeflow
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.tar.gz
+
+  # ============================================================================
+  # 2. Windows Packages (x64 & ARM64 Standalone Exe + Installer)
+  # ============================================================================
+  build-windows:
+    name: Build Windows (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            python-arch: x64
+          - arch: arm64
+            python-arch: arm64
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.python-arch }}
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows Standalone Executable
+        run: |
+          pyinstaller packaging/freeflow.spec --distpath dist --workpath build -y
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Compile Inno Setup Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging/windows/freeflow.iss /F"FreeFlow-Setup-Windows-${{ matrix.arch }}"
+
+      - name: Create Portable Zip
+        run: |
+          Compress-Archive -Path dist\freeflow\* -DestinationPath dist\FreeFlow-windows-${{ matrix.arch }}.zip
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}-artifacts
+          path: |
+            dist/*.exe
+            dist/*.zip
+
+  # ============================================================================
+  # 3. macOS Packages (Universal DMG & App Bundle)
+  # ============================================================================
+  build-macos:
+    name: Build macOS (Apple Silicon & Intel)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install System Dependencies
+        run: |
+          brew install portaudio ffmpeg create-dmg || true
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS App Bundle
+        run: |
+          pyinstaller packaging/freeflow.spec --distpath dist --workpath build --windowed -y
+
+      - name: Package macOS DMG
+        run: |
+          chmod +x packaging/macos/build_dmg.sh
+          ./packaging/macos/build_dmg.sh || true
+
+      - name: Create Portable Tarball
+        run: |
+          cd dist
+          tar -czf FreeFlow-macOS-universal.tar.gz freeflow || true
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            dist/*.dmg
+            dist/*.tar.gz
+
+  # ============================================================================
+  # 4. Publish Release to GitHub
+  # ============================================================================
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
+          path: release_assets/
+
+      - name: Download Windows x64 Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64-artifacts
+          path: release_assets/
+
+      - name: Download Windows ARM64 Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-artifacts
+          path: release_assets/
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: release_assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: FreeFlow ${{ github.event.inputs.tag_name || github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release_assets/*
