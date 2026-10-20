@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "code-documenter": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-documenter/SKILL.md",
+      "computedHash": "67bce9252816a85b3a00d68bc200fb823d9db9387b7e8d622fdabb0b31872c72"
+    }
+  }
+}
