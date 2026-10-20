@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=FreeFlow
+Comment=High-speed voice-to-text dictation application
+Exec=/mnt/SSD_Storage/Coding/FreeFlow/.venv/bin/python3 /mnt/SSD_Storage/Coding/FreeFlow/app.py
+Icon=/mnt/SSD_Storage/Coding/FreeFlow/assets/icon.png
+Terminal=false
+Type=Application
+Categories=Utility;Audio;AudioVideo;Accessibility;
+StartupNotify=false
+Keywords=whisper;voice;dictation;speech;transcription;groq;freeflow;wispr;
