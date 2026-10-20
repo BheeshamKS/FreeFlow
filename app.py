@@ -52,7 +52,7 @@ from ui.main_window import MainWindow
 from ui.onboarding import OnboardingWizard
 from ui.tray import SystemTrayController
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.0.0"
 
 
 class FreeFlowApplication:
