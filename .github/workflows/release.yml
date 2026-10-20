@@ -34,7 +34,7 @@ jobs:
       - name: Install System Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libportaudio2 portaudio19-dev libnotify-bin xclip xdotool file wget
+          sudo apt-get install -y libportaudio2 portaudio19-dev libnotify-bin xclip xdotool file curl
 
       - name: Install Python Dependencies
         run: |
@@ -51,20 +51,19 @@ jobs:
           chmod +x packaging/build_deb.sh
           ./packaging/build_deb.sh
 
-      - name: Generate AppImage
+      - name: Generate AppImage & Portable Tarball
         run: |
-          # Download appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
-          chmod +x appimagetool
-          sed -i 's|AI\x02|\x00\x00\x00|' appimagetool || true
+          chmod +x packaging/build_appimage.sh
           
-          # Prepare AppDir
-          APPDIR="build/AppDir"
-          mkdir -p "$APPDIR/opt/freeflow" "$APPDIR/usr/bin"
-          cp -r dist/freeflow/* "$APPDIR/opt/freeflow/"
-          
-          # Create AppRun
-          cat << 'EOF' > "$APPDIR/AppRun"
+          # Download latest continuous appimagetool
+          curl -sLO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage || true
+          if [ -f appimagetool-x86_64.AppImage ]; then
+            chmod +x appimagetool-x86_64.AppImage
+            # Prepare AppDir
+            APPDIR="build/AppDir"
+            mkdir -p "$APPDIR/opt/freeflow" "$APPDIR/usr/bin"
+            cp -r dist/freeflow/* "$APPDIR/opt/freeflow/"
+            cat << 'EOF' > "$APPDIR/AppRun"
           #!/bin/sh
           SELF=$(readlink -f "$0")
           HERE=${SELF%/*}
@@ -73,18 +72,15 @@ jobs:
           export PYTHONHOME="${HERE}/opt/freeflow"
           exec "${HERE}/opt/freeflow/freeflow" "$@"
           EOF
-          chmod 755 "$APPDIR/AppRun"
+            chmod 755 "$APPDIR/AppRun"
+            cp freeflow.desktop "$APPDIR/freeflow.desktop"
+            cp assets/icon.png "$APPDIR/freeflow.png"
+            cp assets/icon.png "$APPDIR/.DirIcon"
+            ./appimagetool-x86_64.AppImage --appimage-extract-and-run "$APPDIR" dist/FreeFlow-1.1.0-x86_64.AppImage || true
+          fi
           
-          cp freeflow.desktop "$APPDIR/freeflow.desktop"
-          cp assets/icon.png "$APPDIR/freeflow.png"
-          cp assets/icon.png "$APPDIR/.DirIcon"
-          
-          ./appimagetool "$APPDIR" dist/FreeFlow-x86_64.AppImage || true
-
-      - name: Create Portable Tarball (.tar.gz)
-        run: |
-          cd dist
-          tar -czf FreeFlow-linux-x86_64.tar.gz freeflow
+          # Create portable tarball
+          ./packaging/build_appimage.sh || true
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
@@ -96,19 +92,11 @@ jobs:
             dist/*.tar.gz
 
   # ============================================================================
-  # 2. Windows Packages (x64 & ARM64 Standalone Exe + Installer)
+  # 2. Windows Packages (x64 Standalone Exe + Inno Setup Installer)
   # ============================================================================
   build-windows:
-    name: Build Windows (${{ matrix.arch }})
+    name: Build Windows (x64)
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            python-arch: x64
-          - arch: arm64
-            python-arch: arm64
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -117,7 +105,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          architecture: ${{ matrix.python-arch }}
+          architecture: 'x64'
           cache: 'pip'
 
       - name: Install Python Dependencies
@@ -136,16 +124,16 @@ jobs:
 
       - name: Compile Inno Setup Installer
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging/windows/freeflow.iss /F"FreeFlow-Setup-Windows-${{ matrix.arch }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\freeflow.iss
 
       - name: Create Portable Zip
         run: |
-          Compress-Archive -Path dist\freeflow\* -DestinationPath dist\FreeFlow-windows-${{ matrix.arch }}.zip
+          Compress-Archive -Path dist\freeflow\* -DestinationPath dist\FreeFlow-windows-x64.zip
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ matrix.arch }}-artifacts
+          name: windows-artifacts
           path: |
             dist/*.exe
             dist/*.zip
@@ -154,7 +142,7 @@ jobs:
   # 3. macOS Packages (Universal DMG & App Bundle)
   # ============================================================================
   build-macos:
-    name: Build macOS (Apple Silicon & Intel)
+    name: Build macOS
     runs-on: macos-latest
     steps:
       - name: Checkout Code
@@ -168,7 +156,7 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          brew install portaudio ffmpeg create-dmg || true
+          brew install portaudio ffmpeg || true
 
       - name: Install Python Dependencies
         run: |
@@ -178,17 +166,12 @@ jobs:
 
       - name: Build macOS App Bundle
         run: |
-          pyinstaller packaging/freeflow.spec --distpath dist --workpath build --windowed -y
+          pyinstaller packaging/freeflow.spec --distpath dist --workpath build -y
 
       - name: Package macOS DMG
         run: |
           chmod +x packaging/macos/build_dmg.sh
-          ./packaging/macos/build_dmg.sh || true
-
-      - name: Create Portable Tarball
-        run: |
-          cd dist
-          tar -czf FreeFlow-macOS-universal.tar.gz freeflow || true
+          ./packaging/macos/build_dmg.sh
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
@@ -206,22 +189,19 @@ jobs:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
+      - name: Create Release Directory
+        run: mkdir -p release_assets
+
       - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
           name: linux-artifacts
           path: release_assets/
 
-      - name: Download Windows x64 Artifacts
+      - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: windows-x64-artifacts
-          path: release_assets/
-
-      - name: Download Windows ARM64 Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-arm64-artifacts
+          name: windows-artifacts
           path: release_assets/
 
       - name: Download macOS Artifacts
@@ -230,7 +210,7 @@ jobs:
           name: macos-artifacts
           path: release_assets/
 
-      - name: Create Release
+      - name: Publish Release Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
