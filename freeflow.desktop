@@ -1,10 +1,12 @@
 [Desktop Entry]
 Name=FreeFlow
-Comment=High-speed voice-to-text dictation application
-Exec=/mnt/SSD_Storage/Coding/FreeFlow/.venv/bin/python3 /mnt/SSD_Storage/Coding/FreeFlow/app.py
-Icon=/mnt/SSD_Storage/Coding/FreeFlow/assets/icon.png
+GenericName=Voice Dictation Platform
+Comment=Sub-second voice dictation for Linux, Windows, and macOS
+Exec=freeflow %u
+Icon=freeflow
 Terminal=false
 Type=Application
-Categories=Utility;Audio;AudioVideo;Accessibility;
-StartupNotify=false
-Keywords=whisper;voice;dictation;speech;transcription;groq;freeflow;wispr;
+Categories=Utility;AudioVideo;Audio;Office;Accessibility;
+StartupNotify=true
+StartupWMClass=freeflow
+Keywords=whisper;voice;dictation;speech;transcription;groq;freeflow;

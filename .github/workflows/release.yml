@@ -54,33 +54,7 @@ jobs:
       - name: Generate AppImage & Portable Tarball
         run: |
           chmod +x packaging/build_appimage.sh
-          
-          # Download latest continuous appimagetool
-          curl -sLO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage || true
-          if [ -f appimagetool-x86_64.AppImage ]; then
-            chmod +x appimagetool-x86_64.AppImage
-            # Prepare AppDir
-            APPDIR="build/AppDir"
-            mkdir -p "$APPDIR/opt/freeflow" "$APPDIR/usr/bin"
-            cp -r dist/freeflow/* "$APPDIR/opt/freeflow/"
-            cat << 'EOF' > "$APPDIR/AppRun"
-          #!/bin/sh
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin:${HERE}/opt/freeflow:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/opt/freeflow:${LD_LIBRARY_PATH}"
-          export PYTHONHOME="${HERE}/opt/freeflow"
-          exec "${HERE}/opt/freeflow/freeflow" "$@"
-          EOF
-            chmod 755 "$APPDIR/AppRun"
-            cp freeflow.desktop "$APPDIR/freeflow.desktop"
-            cp assets/icon.png "$APPDIR/freeflow.png"
-            cp assets/icon.png "$APPDIR/.DirIcon"
-            ./appimagetool-x86_64.AppImage --appimage-extract-and-run "$APPDIR" dist/FreeFlow-1.1.0-x86_64.AppImage || true
-          fi
-          
-          # Create portable tarball
-          ./packaging/build_appimage.sh || true
+          ./packaging/build_appimage.sh
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
