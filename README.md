@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**Sub-second voice dictation for Linux, Windows, and macOS**  
+**Fast, private voice dictation for Linux, Windows, and macOS**  
 *Press a shortcut, speak naturally, and text appears instantly at your cursor.*
 
 [![Linux](https://img.shields.io/badge/Platform-Linux-10b981?style=flat-square&logo=linux&logoColor=white)](https://kernel.org)
