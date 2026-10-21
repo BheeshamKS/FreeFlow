@@ -31,27 +31,44 @@ FreeFlow is a high-speed, native voice-to-text dictation application.
 ## Requirements
 
 - **Operating System**: Linux (Wayland or X11), Windows 10/11, or macOS (11.0+)
-- **Python**: 3.10 or higher
+- **Python**: 3.10 or higher *(only required if installing from source)*
 - **Groq API Key**: Free tier available at [console.groq.com/keys](https://console.groq.com/keys)
 - **Microphone**: Working audio input
 
 ---
 
-## Quick Install
+## Installation
 
-Choose your platform to install dependencies, set up the desktop launcher, and open the guided setup wizard:
+Choose whether to download a ready-to-run pre-built installer or install from source using a terminal command:
 
-### Linux
+### Option 1: Download Pre-Built Installers (Easiest)
+
+Download the installer or binary for your OS directly from the [Latest Release](https://github.com/BheeshamKS/FreeFlow/releases/latest):
+
+| Operating System | Download File | Format | Description |
+|---|---|---|---|
+| 🪟 **Windows** | [**`FreeFlow-Setup-Windows.exe`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-Setup-Windows.exe) | Installer `.exe` | 1-Click setup installer with desktop & Start menu shortcuts *(portable [`.zip`](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-windows-x64.zip) also available)* |
+| 🐧 **Linux** | [**`FreeFlow-1.1.0-x86_64.AppImage`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-x86_64.AppImage) | AppImage | Standalone binary — runs on any Linux distribution without installation (`chmod +x && ./...`) |
+| 🐧 **Linux** | [**`freeflow_1.0.0_amd64.deb`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/freeflow_1.0.0_amd64.deb) | Debian Package | Native `.deb` package for Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo dpkg -i`) |
+| 🍎 **macOS** | [**`FreeFlow-1.1.0-macOS.dmg`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-macOS.dmg) | Disk Image `.dmg` | Native drag-and-drop installer for `/Applications` *(portable [`.tar.gz`](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-macOS-universal.tar.gz) also available)* |
+
+---
+
+### Option 2: Install via Terminal Commands (From Source)
+
+Run the single-line command for your platform. The setup script automatically creates a virtual environment, installs dependencies, and launches the onboarding wizard:
+
+#### 🐧 Linux
 ```bash
 git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup.sh
 ```
 
-### macOS
+#### 🍎 macOS
 ```bash
 git clone https://github.com/BheeshamKS/FreeFlow.git && cd FreeFlow && ./setup-mac.sh
 ```
 
-### Windows (PowerShell)
+#### 🪟 Windows (PowerShell)
 ```powershell
 git clone https://github.com/BheeshamKS/FreeFlow.git; cd FreeFlow; .\setup.ps1
 ```
@@ -88,7 +105,7 @@ macOS requires Accessibility permissions for global shortcut detection and text 
 > **System Settings → Privacy & Security → Accessibility**
 
 ### Windows
-Runs out of the box with standard user permissions.
+Runs out of the box with standard user permissions. Windows 11 on ARM is supported via built-in x64 emulation.
 
 ---
 
