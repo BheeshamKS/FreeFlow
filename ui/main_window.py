@@ -42,6 +42,20 @@ from core.version import APP_VERSION
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 
+class NoScrollComboBox(QComboBox):
+    """
+    QComboBox that ignores mouse wheel scrolling when closed.
+    Prevents unintended setting changes when scrolling through preferences pages.
+    Scrolling is only enabled when the dropdown popup list is open.
+    """
+    def wheelEvent(self, event):
+        view = self.view()
+        if view and view.isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
 # ==============================================================================
 # Handcrafted Voice Orb Widget
 # ==============================================================================
@@ -504,47 +518,6 @@ class MainWindow(QMainWindow):
         status_box.addWidget(self.lbl_sidebar_status)
 
         layout.addLayout(status_box)
-
-        layout.addSpacing(10)
-
-        # Setup Wizard Quick Action
-        btn_wizard = QPushButton("Setup Guide")
-        btn_wizard.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #8a8f98;
-                border: none;
-                font-size: 11px;
-                text-align: left;
-                padding: 4px 0;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                color: #10b981;
-            }
-        """)
-        btn_wizard.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_wizard.clicked.connect(self._open_onboarding_wizard)
-        layout.addWidget(btn_wizard)
-
-        btn_quit = QPushButton("Quit FreeFlow")
-        btn_quit.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #52525b;
-                border: none;
-                font-size: 11px;
-                text-align: left;
-                padding: 4px 0;
-            }
-            QPushButton:hover {
-                color: #ef4444;
-            }
-        """)
-        btn_quit.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_quit.clicked.connect(self._on_quit_clicked)
-        layout.addWidget(btn_quit)
-
         return sidebar
 
     def _update_footer_keycaps(self):
@@ -896,7 +869,7 @@ class MainWindow(QMainWindow):
         au_layout.addWidget(mic_desc)
 
         mic_row = QHBoxLayout()
-        self.combo_device = QComboBox()
+        self.combo_device = NoScrollComboBox()
         self.btn_refresh_mics = QPushButton("Refresh Devices")
         self.btn_refresh_mics.setObjectName("GhostAction")
         self.btn_refresh_mics.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -941,7 +914,7 @@ class MainWindow(QMainWindow):
         u_mode_layout.setContentsMargins(18, 4, 0, 8)
         u_mode_layout.setSpacing(6)
 
-        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart")
+        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart the app")
         self.radio_update_ask = QRadioButton("Ask before updating: Show notification when update is available")
 
         self.bg_update_mode = QButtonGroup(self)
@@ -1018,13 +991,48 @@ class MainWindow(QMainWindow):
         w_layout.addWidget(btn_run_wizard)
         layout.addWidget(card_wizard)
 
-        # Save Button
-        btn_save = QPushButton("Save Preferences")
-        btn_save.setObjectName("PrimaryAction")
-        btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_save.setFixedHeight(40)
-        btn_save.clicked.connect(self._save_settings)
-        layout.addWidget(btn_save)
+        # 5. Application Control (Quit)
+        card_app_ctrl = self._create_section_card("Application Control")
+        ac_layout = card_app_ctrl.layout()
+        ac_desc = QLabel("Fully terminate FreeFlow and shut down background listeners.")
+        ac_desc.setStyleSheet("font-size: 12px; color: #8a8f98; margin-bottom: 6px;")
+        ac_layout.addWidget(ac_desc)
+
+        btn_quit = QPushButton("Quit FreeFlow")
+        btn_quit.setStyleSheet("""
+            QPushButton {
+                background-color: #1a1012;
+                color: #f87171;
+                border: 1px solid #3b171c;
+                border-radius: 8px;
+                padding: 9px 18px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #ef4444;
+                border-color: #ef4444;
+                color: #ffffff;
+            }
+        """)
+        btn_quit.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_quit.setFixedWidth(140)
+        btn_quit.clicked.connect(self._on_quit_clicked)
+        ac_layout.addWidget(btn_quit)
+        layout.addWidget(card_app_ctrl)
+
+        # Wire automatic saving on all interactive settings controls
+        self.radio_toggle.toggled.connect(self._save_settings)
+        self.radio_hold.toggled.connect(self._save_settings)
+        self.combo_device.currentIndexChanged.connect(self._save_settings)
+        self.chk_autostart.toggled.connect(self._save_settings)
+        self.chk_start_minimized.toggled.connect(self._save_settings)
+        self.chk_close_to_tray.toggled.connect(self._save_settings)
+        self.chk_show_hud.toggled.connect(self._save_settings)
+        self.chk_updates.toggled.connect(self._save_settings)
+        self.radio_update_auto.toggled.connect(self._save_settings)
+        self.radio_update_ask.toggled.connect(self._save_settings)
+        self.input_key.editingFinished.connect(self._save_settings)
 
         layout.addStretch()
         scroll.setWidget(container)
@@ -1068,6 +1076,7 @@ class MainWindow(QMainWindow):
         hk_str = self.config.get_display_hotkey()
         self.btn_hotkey_badge.setText(f"Shortcut: {hk_str}")
         self._update_footer_keycaps()
+        self._save_settings()
 
     def _toggle_show_key(self):
         if self.input_key.echoMode() == QLineEdit.EchoMode.Password:
@@ -1151,21 +1160,25 @@ class MainWindow(QMainWindow):
 
     def _populate_audio_devices(self):
         """Query connected microphones and populate the device selector dropdown."""
-        curr_device = self.config.audio_device
-        self.combo_device.clear()
-        self.combo_device.addItem("System Default Microphone", "")
-        
-        devices = list_input_devices()
-        selected_idx = 0
-        for i, dev in enumerate(devices):
-            display = f"{dev['name']} ({dev['channels']} ch)"
-            if dev.get('default'):
-                display += " [Default]"
-            self.combo_device.addItem(display, dev['name'])
-            if curr_device and curr_device.strip() == dev['name'].strip():
-                selected_idx = i + 1
+        self.combo_device.blockSignals(True)
+        try:
+            curr_device = self.config.audio_device
+            self.combo_device.clear()
+            self.combo_device.addItem("System Default Microphone", "")
+            
+            devices = list_input_devices()
+            selected_idx = 0
+            for i, dev in enumerate(devices):
+                display = f"{dev['name']} ({dev['channels']} ch)"
+                if dev.get('default'):
+                    display += " [Default]"
+                self.combo_device.addItem(display, dev['name'])
+                if curr_device and curr_device.strip() == dev['name'].strip():
+                    selected_idx = i + 1
 
-        self.combo_device.setCurrentIndex(selected_idx)
+            self.combo_device.setCurrentIndex(selected_idx)
+        finally:
+            self.combo_device.blockSignals(False)
 
     def _check_for_updates(self):
         """Initiate manual update check from Settings card."""
@@ -1195,7 +1208,11 @@ class MainWindow(QMainWindow):
         self.lbl_update_status.setText("Could not reach GitHub.")
         self.lbl_update_status.setStyleSheet("color: #ef4444; font-size: 12px;")
 
-    def _save_settings(self):
+    def _save_settings(self, *args):
+        """Silently persist configuration and apply changes immediately in real time."""
+        if not hasattr(self, "combo_device"):
+            return
+
         self.config.groq_api_key = self.input_key.text().strip()
         self.config.hotkey_modifier = self.shortcut_recorder.modifier
         self.config.hotkey_key = self.shortcut_recorder.key
@@ -1218,8 +1235,6 @@ class MainWindow(QMainWindow):
 
         if self.settings_changed:
             self.settings_changed.emit(self.config)
-
-        QMessageBox.information(self, "Saved", "Preferences updated successfully!")
 
     def closeEvent(self, event):
         if self.config.close_to_tray:

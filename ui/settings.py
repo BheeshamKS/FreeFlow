@@ -34,6 +34,19 @@ from ui.shortcut_recorder import ShortcutRecorderWidget
 logger = logging.getLogger("FreeFlow.Settings")
 
 
+class NoScrollComboBox(QComboBox):
+    """
+    QComboBox that ignores mouse wheel scrolling when closed.
+    Prevents unintended setting changes when scrolling through preferences pages.
+    """
+    def wheelEvent(self, event):
+        view = self.view()
+        if view and view.isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+
 class SettingsDialog(QDialog):
     """Tabbed Preferences Dialog for FreeFlow."""
 
@@ -178,7 +191,7 @@ class SettingsDialog(QDialog):
         mode_box = QVBoxLayout()
         mode_box.setContentsMargins(16, 2, 0, 4)
         mode_box.setSpacing(4)
-        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart")
+        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart the app")
         self.radio_update_ask = QRadioButton("Ask before updating: Show notification when update is available")
 
         self.update_mode_group = QButtonGroup(self)
@@ -218,7 +231,7 @@ class SettingsDialog(QDialog):
 
         # Microphone Device Selection
         mic_layout = QHBoxLayout()
-        self.combo_device = QComboBox()
+        self.combo_device = NoScrollComboBox()
         self.btn_refresh_mics = QPushButton("Refresh")
         self.btn_refresh_mics.setFixedWidth(75)
         self.btn_refresh_mics.clicked.connect(self._populate_audio_devices)
@@ -228,7 +241,7 @@ class SettingsDialog(QDialog):
         self._populate_audio_devices()
 
         # Whisper Model
-        self.combo_whisper = QComboBox()
+        self.combo_whisper = NoScrollComboBox()
         self.combo_whisper.addItem("whisper-large-v3 (Highest Accuracy, Multilingual)", "whisper-large-v3")
         self.combo_whisper.addItem("whisper-large-v3-turbo (Fast & Accurate)", "whisper-large-v3-turbo")
         self.combo_whisper.addItem("distil-whisper-large-v3-en (Ultra-fast English)", "distil-whisper-large-v3-en")
@@ -238,7 +251,7 @@ class SettingsDialog(QDialog):
         form.addRow("Speech Model:", self.combo_whisper)
 
         # Sample Rate
-        self.combo_rate = QComboBox()
+        self.combo_rate = NoScrollComboBox()
         self.combo_rate.addItem("16000 Hz (Optimal for Whisper)", 16000)
         self.combo_rate.addItem("44100 Hz (CD Quality)", 44100)
         r_idx = self.combo_rate.findData(self.config.sample_rate)
@@ -266,7 +279,7 @@ class SettingsDialog(QDialog):
         llm_layout.addWidget(self.chk_format)
 
         form_llm = QFormLayout()
-        self.combo_llm = QComboBox()
+        self.combo_llm = NoScrollComboBox()
         self.combo_llm.addItem("openai/gpt-oss-20b (Recommended, Ultra-Fast)", "openai/gpt-oss-20b")
         self.combo_llm.addItem("qwen/qwen3.8-27b (Fast & Precise)", "qwen/qwen3.8-27b")
         self.combo_llm.addItem("openai/gpt-oss-120b (Comprehensive)", "openai/gpt-oss-120b")
@@ -457,7 +470,7 @@ class SettingsDialog(QDialog):
         ans = QMessageBox.information(
             self,
             "Update Ready",
-            "Update downloaded successfully! FreeFlow will now restart to apply changes.",
+            "Update downloaded successfully! The FreeFlow app will now restart to apply changes.",
             QMessageBox.StandardButton.Ok
         )
         updater.apply_update_and_restart()

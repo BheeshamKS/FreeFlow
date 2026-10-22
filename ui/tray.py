@@ -136,40 +136,16 @@ class SystemTrayController(QObject):
             self.tray.setIcon(self.icon_recording)
             self.toggle_action.setText(f"Stop Recording ({hotkey_str})")
             self.update_tooltip("Recording Audio...")
-            if self.config.enable_notifications:
-                self.send_desktop_notification(
-                    title="FreeFlow",
-                    message="Recording started",
-                    icon="audio-input-microphone",
-                    urgency="low",
-                    expire_ms=1500
-                )
 
         elif state in ("transcribing", "formatting"):
             self.tray.setIcon(self.icon_processing)
             self.toggle_action.setText("Processing...")
             self.update_tooltip("Transcribing / Polishing...")
-            if self.config.enable_notifications:
-                self.send_desktop_notification(
-                    title="FreeFlow",
-                    message="Transcribing audio with Whisper...",
-                    icon="hourglass",
-                    urgency="low",
-                    expire_ms=1500
-                )
 
         elif state == "done":
             self.tray.setIcon(self.icon_normal)
             self.toggle_action.setText(f"Start Recording ({hotkey_str})")
             self.update_tooltip("Ready")
-            if self.config.enable_notifications:
-                self.send_desktop_notification(
-                    title="FreeFlow",
-                    message="Transcription injected into active window",
-                    icon="emblem-default",
-                    urgency="low",
-                    expire_ms=2000
-                )
 
         elif state == "error":
             self.tray.setIcon(self.icon_normal)

@@ -66,6 +66,13 @@ class TestVersionAndUpdater(unittest.TestCase):
 class TestAudioInputDevice(unittest.TestCase):
     """Test microphone device enumeration and selection."""
 
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        import sys
+        if QApplication.instance() is None:
+            cls._qapp = QApplication(sys.argv)
+
     def test_list_devices(self):
         devices = list_input_devices()
         self.assertIsInstance(devices, list)
@@ -89,6 +96,25 @@ class TestAudioInputDevice(unittest.TestCase):
         self.assertEqual(recorder.device, "My Test Mic")
         recorder.set_device(None)
         self.assertIsNone(recorder.device)
+
+    def test_no_scroll_combo_box(self):
+        from ui.main_window import NoScrollComboBox
+        combo = NoScrollComboBox()
+        combo.addItem("Device 1")
+        combo.addItem("Device 2")
+        self.assertEqual(combo.currentIndex(), 0)
+
+        # In headless test, view is not visible, so wheel event must be ignored
+        class DummyEvent:
+            def __init__(self):
+                self.ignored = False
+            def ignore(self):
+                self.ignored = True
+
+        ev = DummyEvent()
+        combo.wheelEvent(ev)
+        self.assertTrue(ev.ignored)
+        self.assertEqual(combo.currentIndex(), 0)  # Selection did NOT change!
 
 
 class TestConfigPersistence(unittest.TestCase):
