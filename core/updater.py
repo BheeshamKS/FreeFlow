@@ -146,7 +146,8 @@ class CheckUpdateWorker(QThread):
     check_failed = pyqtSignal(str) if QThread is not None else None
 
     def __init__(self, current_version: str, parent=None):
-        super().__init__(parent)
+        q_parent = parent if (QThread is not None and isinstance(parent, QObject)) else None
+        super().__init__(q_parent)
         self.current_version = current_version
 
     def run(self):
@@ -194,7 +195,8 @@ class DownloadUpdateWorker(QThread):
     download_failed = pyqtSignal(str) if QThread is not None else None
 
     def __init__(self, download_url: str, filename: str, parent=None):
-        super().__init__(parent)
+        q_parent = parent if (QThread is not None and isinstance(parent, QObject)) else None
+        super().__init__(q_parent)
         self.download_url = download_url
         self.filename = filename
 
@@ -256,7 +258,8 @@ class UpdateManager(QObject):
     download_error = pyqtSignal(str) if QObject is not None else None
 
     def __init__(self, current_version: str, parent=None):
-        super().__init__(parent)
+        q_parent = parent if (QThread is not None and isinstance(parent, QObject)) else None
+        super().__init__(q_parent)
         self.current_version = current_version
         self.install_type = detect_install_type()
         self._check_worker: Optional[CheckUpdateWorker] = None
