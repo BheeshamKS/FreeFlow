@@ -92,6 +92,11 @@ class AppConfig:
     start_minimized: bool = False           # Launch minimized to tray on boot
     close_to_tray: bool = True              # Closing window hides to tray instead of quitting
     first_run_completed: bool = False       # Tracks whether first-time onboarding wizard has completed
+
+    # Software Updates
+    check_updates_on_startup: bool = True   # Automatically check for updates on startup
+    auto_update_mode: str = "ask"           # "auto" (download & prompt restart) or "ask" (notify before download)
+    last_update_check: float = 0.0          # Unix timestamp of last update check
     
     @classmethod
     def load(cls) -> "AppConfig":
@@ -126,6 +131,11 @@ class AppConfig:
         
         cfg.sample_rate = int(s.value("sample_rate", cfg.sample_rate))
         cfg.channels = int(s.value("channels", cfg.channels))
+        audio_dev = s.value("audio_device", None)
+        if audio_dev is not None and str(audio_dev).strip() != "" and str(audio_dev).lower() != "none":
+            cfg.audio_device = str(audio_dev)
+        else:
+            cfg.audio_device = None
         cfg.inject_delay = float(s.value("inject_delay", cfg.inject_delay))
         cfg.use_clipboard_injection = _parse_bool(s.value("use_clipboard_injection"), cfg.use_clipboard_injection)
         cfg.restore_clipboard = _parse_bool(s.value("restore_clipboard"), cfg.restore_clipboard)
@@ -136,6 +146,13 @@ class AppConfig:
         cfg.start_minimized = _parse_bool(s.value("start_minimized"), cfg.start_minimized)
         cfg.close_to_tray = _parse_bool(s.value("close_to_tray"), cfg.close_to_tray)
         cfg.first_run_completed = _parse_bool(s.value("first_run_completed"), cfg.first_run_completed)
+        
+        cfg.check_updates_on_startup = _parse_bool(s.value("check_updates_on_startup"), cfg.check_updates_on_startup)
+        cfg.auto_update_mode = str(s.value("auto_update_mode", cfg.auto_update_mode))
+        try:
+            cfg.last_update_check = float(s.value("last_update_check", cfg.last_update_check))
+        except (ValueError, TypeError):
+            cfg.last_update_check = 0.0
         
         return cfg
 
@@ -157,6 +174,7 @@ class AppConfig:
         
         s.setValue("sample_rate", self.sample_rate)
         s.setValue("channels", self.channels)
+        s.setValue("audio_device", self.audio_device or "")
         s.setValue("inject_delay", self.inject_delay)
         s.setValue("use_clipboard_injection", self.use_clipboard_injection)
         s.setValue("restore_clipboard", self.restore_clipboard)
@@ -167,6 +185,10 @@ class AppConfig:
         s.setValue("start_minimized", self.start_minimized)
         s.setValue("close_to_tray", self.close_to_tray)
         s.setValue("first_run_completed", self.first_run_completed)
+
+        s.setValue("check_updates_on_startup", self.check_updates_on_startup)
+        s.setValue("auto_update_mode", self.auto_update_mode)
+        s.setValue("last_update_check", self.last_update_check)
         s.sync()
 
     def get_display_hotkey(self) -> str:

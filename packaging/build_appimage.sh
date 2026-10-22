@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-VERSION="1.1.0"
+VERSION="${1:-1.2.0}"
 APP_DIR="/tmp/freeflow_appimage_build/AppDir"
 DIST_DIR="${ROOT_DIR}/dist"
 

@@ -23,6 +23,8 @@ FreeFlow is a high-speed, native voice-to-text dictation application.
 - **Instant Dictation (~300ms)**: Press your global shortcut from any app (terminal, IDE, browser, chat), speak, and text is typed straight into your active cursor.
 - **Cross-Platform Native Injection**: Direct active window injection across Linux (Wayland & X11), Windows, and macOS.
 - **Whisper Large v3**: High-accuracy speech recognition powered by Groq's ultra-fast LPUs.
+- **Microphone Selection**: Choose any physical, USB, Bluetooth, or virtual input device directly in Preferences with real-time hardware scanning.
+- **Automated Self-Updating**: Automatically checks GitHub Releases on startup with Auto-Update and Ask Before Updating modes—never requires manual re-downloading.
 - **Minimalist HUD**: Floating waveform capsule with real-time audio visualization while speaking.
 - **Private & Lightweight**: 0% idle CPU usage and 100% private local history stored on your device.
 
@@ -48,9 +50,9 @@ Download the installer or binary for your OS directly from the [Latest Release](
 | Operating System | Download File | Format | Description |
 |---|---|---|---|
 | 🪟 **Windows** | [**`FreeFlow-Setup-Windows.exe`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-Setup-Windows.exe) | Installer `.exe` | 1-Click setup installer with desktop & Start menu shortcuts *(portable [`.zip`](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-windows-x64.zip) also available)* |
-| 🐧 **Linux** | [**`FreeFlow-1.1.0-x86_64.AppImage`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-x86_64.AppImage) | AppImage | Standalone binary — runs on any Linux distribution without installation (`chmod +x && ./...`) |
-| 🐧 **Linux** | [**`freeflow_1.0.0_amd64.deb`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/freeflow_1.0.0_amd64.deb) | Debian Package | Native `.deb` package for Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo dpkg -i`) |
-| 🍎 **macOS** | [**`FreeFlow-1.1.0-macOS.dmg`**](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-macOS.dmg) | Disk Image `.dmg` | Native drag-and-drop installer for `/Applications` *(portable [`.tar.gz`](https://github.com/BheeshamKS/FreeFlow/releases/latest/download/FreeFlow-1.1.0-macOS-universal.tar.gz) also available)* |
+| 🐧 **Linux** | [**`FreeFlow-x86_64.AppImage`**](https://github.com/BheeshamKS/FreeFlow/releases/latest) | AppImage | Standalone binary — runs on any Linux distribution without installation (`chmod +x && ./...`) |
+| 🐧 **Linux** | [**`freeflow_amd64.deb`**](https://github.com/BheeshamKS/FreeFlow/releases/latest) | Debian Package | Native `.deb` package for Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo dpkg -i`) |
+| 🍎 **macOS** | [**`FreeFlow-macOS.dmg`**](https://github.com/BheeshamKS/FreeFlow/releases/latest) | Disk Image `.dmg` | Native drag-and-drop installer for `/Applications` *(portable [`.tar.gz`](https://github.com/BheeshamKS/FreeFlow/releases/latest) also available)* |
 
 ---
 

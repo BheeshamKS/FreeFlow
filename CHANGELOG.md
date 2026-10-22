@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-23
+
+### Added
+- **Audio Input Device (Microphone) Selection**:
+  - Direct hardware microphone selection in Preferences and Main Window Hub.
+  - Dynamic discovery of audio devices using `sounddevice` with a real-time `[Refresh Devices]` scanner.
+  - Safe automatic fallback to system default if an external USB/Bluetooth microphone is unplugged.
+- **Automated GitHub Release Auto-Updater**:
+  - Automatic background update checks against GitHub Releases API on startup.
+  - User-configurable update behavior:
+    - **Auto-Update**: Background silent asset download with prompt to restart when ready.
+    - **Ask Before Updating**: Desktop notification when a new version is published with one-click update & restart.
+  - Zero-friction in-place self-replacement across Linux (AppImage & Git), Windows (Setup EXE), and macOS.
+  - In-app interactive update notification banner in the Desktop Hub header.
+- **Startup Minimize on Boot Fix**:
+  - Resolved issue where FreeFlow popped up on boot even when "Start minimized to system tray on boot" was selected.
+  - Unified cross-platform autostart engine (`core/autostart.py`) managing XDG Autostart, systemd user services, Windows Run registry, and macOS LaunchAgents.
+
+## [1.1.0] - 2026-10-21
+
+### Added
+- **Cross-Platform Support for Windows & macOS**:
+  - Native Windows executable and Inno Setup installer (`FreeFlow-Setup-Windows.exe`).
+  - Native macOS application bundle and disk image (`FreeFlow-1.1.0-macOS.dmg`).
+  - Official Linux AppImage portable bundle (`FreeFlow-1.1.0-x86_64.AppImage`).
+  - GitHub Actions automated multi-platform release CI/CD pipeline.
+
 ## [1.0.0] - 2026-10-21
 
 ### Initial Public Release

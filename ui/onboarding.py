@@ -27,6 +27,7 @@ except ImportError:
 from core.config import AppConfig
 from core.groq_client import GroqService
 from core.platform import is_linux, is_macos, is_windows, get_platform
+from core.autostart import set_autostart
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 logger = logging.getLogger("FreeFlow.Onboarding")
@@ -418,8 +419,7 @@ class OnboardingWizard(QDialog):
         self.config.close_to_tray = self.chk_close_to_tray.isChecked()
         self.config.first_run_completed = True
 
-        if self.config.autostart:
-            subprocess.run(["systemctl", "--user", "enable", "freeflow.service"], capture_output=True)
+        set_autostart(self.config.autostart, self.config.start_minimized)
 
         self.config.save()
         logger.info("First-run onboarding completed successfully.")
