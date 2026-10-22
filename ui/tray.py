@@ -35,6 +35,7 @@ class SystemTrayController(QObject):
     open_hub_requested = pyqtSignal() if QObject is not None else None
     open_settings_requested = pyqtSignal() if QObject is not None else None
     check_updates_requested = pyqtSignal() if QObject is not None else None
+    troubleshoot_requested = pyqtSignal() if QObject is not None else None
     toggle_recording_requested = pyqtSignal() if QObject is not None else None
     quit_requested = pyqtSignal() if QObject is not None else None
 
@@ -88,6 +89,11 @@ class SystemTrayController(QObject):
         self.updates_action = QAction("Check for Updates...", self.menu)
         self.updates_action.triggered.connect(self._on_check_updates_clicked)
         self.menu.addAction(self.updates_action)
+
+        # Troubleshooting & Solutions Guide
+        self.troubleshoot_action = QAction("Troubleshooting & Solutions...", self.menu)
+        self.troubleshoot_action.triggered.connect(self._on_troubleshoot_clicked)
+        self.menu.addAction(self.troubleshoot_action)
 
         self.menu.addSeparator()
 
@@ -232,6 +238,10 @@ class SystemTrayController(QObject):
     def _on_check_updates_clicked(self):
         if self.check_updates_requested:
             self.check_updates_requested.emit()
+
+    def _on_troubleshoot_clicked(self):
+        if self.troubleshoot_requested:
+            self.troubleshoot_requested.emit()
 
     def _on_logs_clicked(self):
         """Open temporary log file or display message box with latest status."""

@@ -2,7 +2,7 @@
 ; Generates FreeFlow-Setup-x64.exe or FreeFlow-Setup-arm64.exe
 
 #define MyAppName "FreeFlow"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #define MyAppPublisher "BheeshamKS"
 #define MyAppURL "https://github.com/BheeshamKS/FreeFlow"
 #define MyAppExeName "freeflow.exe"

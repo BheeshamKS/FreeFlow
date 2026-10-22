@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 
 try:
-    from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF
+    from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF, pyqtSignal
     from PyQt6.QtGui import (
         QPainter, QColor, QPen, QBrush, QFont,
         QLinearGradient, QRadialGradient, QMouseEvent
@@ -20,6 +20,8 @@ try:
 except ImportError:
     class QWidget:
         pass
+    def pyqtSignal(*args):
+        return None
 
 
 class RecordingHUD(QWidget):
@@ -28,6 +30,8 @@ class RecordingHUD(QWidget):
     Renders cleanly above all windows (browsers, IDEs, terminals) without stealing focus.
     Draggable by clicking and moving anywhere on the capsule.
     """
+
+    solutions_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -46,13 +50,14 @@ class RecordingHUD(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        self.setFixedSize(330, 58)
+        self.setFixedSize(380, 58)
 
         # State management
         self.state = "hidden"
         self.status_message = "Listening..."
         self._current_audio_level = 0.0
         self._record_start_time = 0.0
+        self._last_error_details = ""
 
         # Dragging support
         self._drag_pos: Optional[QPoint] = None
@@ -81,12 +86,18 @@ class RecordingHUD(QWidget):
             y = int(geom.bottom() - self.height() - 70)
             self.move(x, y)
 
+    def set_error(self, message: str = "Transcription Failed", error_details: str = ""):
+        """Helper to transition HUD directly to error state with diagnostic info."""
+        self._last_error_details = error_details
+        self.set_state("error", message=message)
+
     def set_state(self, new_state: str, message: Optional[str] = None):
         """Transition HUD state and force immediate top-level presentation."""
         self.state = new_state
         self.hide_timer.stop()
 
         if new_state == "recording":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.status_message = message or "Listening..."
             self._record_start_time = time.time()
             self.snap_to_screen()
@@ -96,6 +107,7 @@ class RecordingHUD(QWidget):
                 self.anim_timer.start(33)
 
         elif new_state == "transcribing":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.status_message = message or "Transcribing..."
             self.show()
             self.raise_()
@@ -103,6 +115,7 @@ class RecordingHUD(QWidget):
                 self.anim_timer.start(33)
 
         elif new_state == "formatting":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.status_message = message or "Polishing with AI..."
             self.show()
             self.raise_()
@@ -110,22 +123,27 @@ class RecordingHUD(QWidget):
                 self.anim_timer.start(33)
 
         elif new_state == "done":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.status_message = message or "Injected!"
             self.anim_timer.stop()
             self.show()
             self.raise_()
             self.update()
-            self.hide_timer.start(1400)
+            self.hide_timer.start(1800)
 
         elif new_state == "error":
-            self.status_message = message or "Notice"
+            # Change cursor to hand to show clickability for solutions
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.status_message = message or "Transcription Failed"
             self.anim_timer.stop()
             self.show()
             self.raise_()
             self.update()
-            self.hide_timer.start(3000)
+            # Give user 8 seconds to click for solutions before auto-dismissing
+            self.hide_timer.start(8000)
 
         elif new_state == "hidden":
+            self.setCursor(Qt.CursorShape.ArrowCursor)
             self.hide_hud()
 
     def update_audio_level(self, level: float):
@@ -160,6 +178,13 @@ class RecordingHUD(QWidget):
     # Interactive Dragging Support
     # --------------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent):
+        if self.state == "error":
+            # Clicking on the error capsule directly opens the Troubleshooting & Solutions dialog
+            self.solutions_requested.emit(self._last_error_details)
+            self.hide_hud()
+            event.accept()
+            return
+
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
@@ -253,7 +278,17 @@ class RecordingHUD(QWidget):
         painter.setPen(QColor(241, 245, 249))
         font_main = QFont("Inter, Ubuntu, Cantarell, Sans-Serif", 10, QFont.Weight.DemiBold)
         painter.setFont(font_main)
-        painter.drawText(48, 34, self.status_message)
+
+        if self.state == "error":
+            # Confine error text so it doesn't collide with the "View Solutions" pill
+            text_rect = QRectF(48, 12, float(self.width() - 48 - 148), 34)
+            painter.drawText(
+                text_rect,
+                int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+                self.status_message
+            )
+        else:
+            painter.drawText(48, 34, self.status_message)
 
         if self.state == "recording" and self._record_start_time > 0:
             elapsed = int(time.time() - self._record_start_time)
@@ -296,6 +331,18 @@ class RecordingHUD(QWidget):
             painter.drawLine(cx - 2, cy + 4, cx + 6, cy - 4)
 
         elif self.state == "error":
-            painter.setBrush(QBrush(QColor(239, 68, 68)))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(QPoint(self.width() - 28, self.height() // 2), 4, 4)
+            # Interactive "View Solutions →" pill button on the right side
+            btn_w = 126.0
+            btn_h = 26.0
+            btn_x = float(self.width() - btn_w - 14.0)
+            btn_y = float((self.height() - btn_h) / 2.0)
+            btn_rect = QRectF(btn_x, btn_y, btn_w, btn_h)
+
+            painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
+            painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
+            painter.drawRoundedRect(btn_rect, 13.0, 13.0)
+
+            painter.setPen(QColor(254, 202, 202))
+            font_btn = QFont("Inter, Ubuntu, Cantarell, Sans-Serif", 9, QFont.Weight.DemiBold)
+            painter.setFont(font_btn)
+            painter.drawText(btn_rect, int(Qt.AlignmentFlag.AlignCenter), "View Solutions →")
