@@ -22,7 +22,10 @@ This repository is governed by the primary orchestrator skill defined at [`.agen
    - `/multi-agent-coordinator` — Multi-agent task coordination
 
 2. **Release History Protocol:**
-   In **every release**, you MUST update the cumulative release log in [`.agents/skills/freeflow-lead/SKILL.md`](file:///.agents/skills/freeflow-lead/SKILL.md) and [`CHANGELOG.md`](file:///CHANGELOG.md) with a summary of newly added features, resolved bugs, and verification results.
+   In **every release**, you MUST update:
+   - The **GitHub Releases changelog on GitHub** via `gh release edit <tag> --repo BheeshamKS/FreeFlow --notes "..."` with full feature summaries, bug fixes, and verification details.
+   - The cumulative release log in [`.agents/skills/freeflow-lead/SKILL.md`](file:///.agents/skills/freeflow-lead/SKILL.md).
+   - [`CHANGELOG.md`](file:///CHANGELOG.md).
 
 3. **Author & Commit Identity:**
    Always author Git commits with:
