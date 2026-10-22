@@ -352,7 +352,7 @@ class FreeFlowApplication(QObject):
             self.main_window if self.main_window.isVisible() else None,
             "FreeFlow Update Ready",
             f"FreeFlow {tag} has been downloaded and is ready to apply!\n\n"
-            f"Restart FreeFlow now to complete the update?",
+            f"Restart the FreeFlow app now to complete the update?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
