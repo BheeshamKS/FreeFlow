@@ -294,6 +294,7 @@ class MainWindow(QMainWindow):
     toggle_recording_requested = pyqtSignal() if QMainWindow is not None else None
     settings_changed = pyqtSignal(object) if QMainWindow is not None else None
     quit_requested = pyqtSignal() if QMainWindow is not None else None
+    simulate_error_requested = pyqtSignal(str) if QMainWindow is not None else None
 
     def __init__(self, config: AppConfig, history: HistoryManager, parent=None):
         super().__init__(parent)
@@ -991,17 +992,17 @@ class MainWindow(QMainWindow):
         w_layout.addWidget(btn_run_wizard)
         layout.addWidget(card_wizard)
 
-        # 5. Troubleshooting & Solutions Guide
-        card_trouble = self._create_section_card("Troubleshooting & Diagnostics")
+        # 5. Common Troubleshooting & Help Guide
+        card_trouble = self._create_section_card("Common Troubleshooting & Help")
         t_layout = card_trouble.layout()
-        t_desc = QLabel("Diagnose API key authentication, connection errors, microphone silence, or submit a pre-filled issue report to GitHub.")
+        t_desc = QLabel("Browse solutions for API keys, Windows Defender Firewall, microphone capture, test diagnostics, or report issues.")
         t_desc.setStyleSheet("font-size: 12px; color: #8a8f98; margin-bottom: 6px;")
         t_layout.addWidget(t_desc)
 
-        btn_trouble = QPushButton("Open Troubleshooting Guide")
+        btn_trouble = QPushButton("Open Common Troubleshooting Guide")
         btn_trouble.setObjectName("GhostAction")
         btn_trouble.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_trouble.setFixedWidth(220)
+        btn_trouble.setFixedWidth(260)
         btn_trouble.clicked.connect(self._open_troubleshooting_guide)
         t_layout.addWidget(btn_trouble)
         layout.addWidget(card_trouble)
@@ -1114,18 +1115,22 @@ class MainWindow(QMainWindow):
                 diag = diagnose_error(msg)
                 dlg = TroubleshootingDialog(self, diagnostic=diag, config=self.config)
                 dlg.open_settings_requested.connect(self._switch_tab)
+                if self.simulate_error_requested:
+                    dlg.simulate_error_requested.connect(self.simulate_error_requested)
                 dlg.exec()
         finally:
             self.btn_test.setEnabled(True)
             self.btn_test.setText("Test Connection")
 
     def _open_troubleshooting_guide(self):
-        """Open the FreeFlow Troubleshooting & Solutions dialog."""
-        from core.troubleshooting import diagnose_error
+        """Open the FreeFlow Common Troubleshooting & Help Guide."""
+        from core.troubleshooting import get_common_diagnostic
         from ui.troubleshooting_dialog import TroubleshootingDialog
-        diag = diagnose_error("Status Check: Normal Diagnostics")
+        diag = get_common_diagnostic("api_key")
         dlg = TroubleshootingDialog(self, diagnostic=diag, config=self.config)
         dlg.open_settings_requested.connect(self._switch_tab)
+        if self.simulate_error_requested:
+            dlg.simulate_error_requested.connect(self.simulate_error_requested)
         dlg.exec()
 
     def _build_update_banner(self) -> QFrame:

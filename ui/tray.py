@@ -90,8 +90,8 @@ class SystemTrayController(QObject):
         self.updates_action.triggered.connect(self._on_check_updates_clicked)
         self.menu.addAction(self.updates_action)
 
-        # Troubleshooting & Solutions Guide
-        self.troubleshoot_action = QAction("Troubleshooting & Solutions...", self.menu)
+        # Common Troubleshooting & Help Guide
+        self.troubleshoot_action = QAction("Common Troubleshooting & Help...", self.menu)
         self.troubleshoot_action.triggered.connect(self._on_troubleshoot_clicked)
         self.menu.addAction(self.troubleshoot_action)
 

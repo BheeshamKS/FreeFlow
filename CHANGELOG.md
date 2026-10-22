@@ -10,11 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.1] - 2026-10-23
 
 ### Added
-- **Interactive Troubleshooting & Solutions Guide**:
-  - Automated diagnostic engine (`core/troubleshooting.py`) categorizing API key errors, Windows Defender/Firewall connection blocks, rate limits, and microphone silence.
-  - Sleek, interactive `[View Solutions →]` pill button directly on the floating HUD capsule overlay when any error occurs.
-  - Dedicated **Troubleshooting & Solutions Dialog** (`ui/troubleshooting_dialog.py`) with step-by-step guides, live connection tester, and one-click **Report Issue on GitHub** with pre-filled, sanitized diagnostic details (API keys automatically redacted).
-  - Quick access added to System Tray menu and Main Window Settings.
+- **Common Troubleshooting & Help Guide**:
+  - Replaced permanent error displays with a browsable **Common Troubleshooting & Help** guide accessible via Preferences and System Tray.
+  - Interactive topic pills allowing users to review setup instructions and fixes for:
+    - 🔑 **API Key**: Obtaining free keys from Groq Console, format validation, and test connection.
+    - 🌐 **Firewall & Network**: Windows Defender / Antivirus rule guidance, proxies, and HTTPS connectivity.
+    - 🎙️ **Microphone**: Input hardware selection, unmuting, and system permissions.
+    - 📋 **Clipboard**: Automatic active text box paste vs. desktop fallback behavior.
+    - ⏱️ **Rate Limits**: Quotas, cooldowns, and speech recognition model switching.
+  - **On-Demand Error Flow Simulator**: Added a `[Test Error Flow ▾]` tool inside the guide allowing users to simulate errors (API key, Network, Microphone) and verify the HUD capsule and desktop notification flows on demand.
+- **Dynamic Context-Aware Error Solutions**:
+  - When an error occurs during dictation, the HUD capsule presents `[View Solutions →]`, opening the guide directly focused on the active issue.
+  - Closing or accessing the menu later restores the clean, common guide without permanently showing past errors.
 - **Smart Active Text Box Detection & Clipboard Fallback**:
   - Cross-platform active input field detection (`core/injector.py`) across Windows (`GetGUIThreadInfo`), macOS (`AXFocusedUIElement`), and Linux (desktop/dock filtering).
   - **If active text box is focused**: Injects text directly into the focused field and restores the user's prior clipboard buffer (transcribed text is NOT left on the clipboard).

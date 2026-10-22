@@ -1,7 +1,7 @@
 """
 FreeFlow Comprehensive Error Troubleshooting & Diagnostics
 Categorizes runtime exceptions, provides step-by-step remediation guides,
-and constructs pre-filled GitHub issue templates with redacted secrets.
+browsable common troubleshooting topics, and constructs pre-filled GitHub issue templates.
 """
 
 import logging
@@ -35,17 +35,116 @@ class ErrorDiagnostic:
     sanitized_error: str = ""
     github_issue_url: str = ""
     extra_tips: List[str] = field(default_factory=list)
+    is_error: bool = True
+
+
+COMMON_TOPICS: Dict[str, Dict] = {
+    "api_key": {
+        "title": "Groq API Key Setup & Verification",
+        "category": "INVALID_API_KEY",
+        "icon": "🔑",
+        "summary": "How to create a free Groq API key and configure it properly in FreeFlow.",
+        "steps": [
+            "Visit console.groq.com/keys to generate a free personal API key.",
+            "Copy your key (starts with 'gsk_') and paste it into FreeFlow Preferences.",
+            "Click 'Test Connection' in Preferences to ensure the key is active and recognized.",
+            "Ensure there are no leading, trailing, or hidden whitespace characters in the key field."
+        ],
+        "primary_label": "Open Preferences",
+        "primary_id": "open_settings",
+        "secondary_label": "Get Free Groq Key",
+        "secondary_id": "open_groq_console",
+        "extra_tips": [
+            "Groq API keys are completely free for personal speech transcription.",
+            "Never share your API key publicly or commit it into code repositories."
+        ]
+    },
+    "connection": {
+        "title": "Network Connection & Windows Firewall",
+        "category": "NETWORK_FIREWALL",
+        "icon": "🌐",
+        "summary": "Resolving connection drops, proxy issues, and Windows Defender / Firewall blocks.",
+        "steps": [
+            "Verify your computer has an active internet connection.",
+            "Windows Defender / Firewall: Ensure Python and FreeFlow are allowed outbound HTTPS access.",
+            "Antivirus / VPN: If using a VPN or third-party antivirus, temporarily whitelist api.groq.com:443.",
+            "DNS Resolution: Ensure your network can resolve api.groq.com.",
+            "Click 'Test Connection' below to confirm connection to Groq's servers."
+        ],
+        "primary_label": "Test Groq Connection",
+        "primary_id": "test_connection",
+        "secondary_label": "Open Preferences",
+        "secondary_id": "open_settings",
+        "extra_tips": [
+            "On corporate/school networks, AI API domains might require proxy configuration."
+        ]
+    },
+    "microphone": {
+        "title": "Microphone Selection & Audio Silence",
+        "category": "AUDIO_EMPTY",
+        "icon": "🎙️",
+        "summary": "Resolving empty audio captures, hardware mute issues, and input device selection.",
+        "steps": [
+            "Open FreeFlow Preferences -> Audio Device -> select your specific hardware microphone.",
+            "Click 'Refresh Devices' if your USB microphone or headset was recently plugged in.",
+            "Check that your physical microphone mute switch is turned OFF.",
+            "On Windows / macOS / Linux, ensure Microphone Permissions are granted to FreeFlow."
+        ],
+        "primary_label": "Select Microphone",
+        "primary_id": "open_audio_settings",
+        "secondary_label": "Open Preferences",
+        "secondary_id": "open_settings",
+        "extra_tips": [
+            "Whisper speech recognition requires clear audible sound; whisper-level speech might be filtered by noise suppression."
+        ]
+    },
+    "injection": {
+        "title": "Text Injection & Smart Clipboard Fallback",
+        "category": "INJECTION_INFO",
+        "icon": "📋",
+        "summary": "How FreeFlow automatically detects active text boxes vs desktop clipboard fallback.",
+        "steps": [
+            "When an active text box is focused: FreeFlow injects text directly and restores your previous clipboard.",
+            "When NO text box is focused (desktop wallpaper, panel, or unfocused window): FreeFlow copies the text directly to your clipboard.",
+            "When copied to clipboard, paste it anywhere with Ctrl+V (Cmd+V on macOS).",
+            "Adjust injection delay in Preferences if your PC needs more time to register keystrokes."
+        ],
+        "primary_label": "Open Preferences",
+        "primary_id": "open_settings",
+        "secondary_label": "Test Injection",
+        "secondary_id": "test_connection",
+        "extra_tips": [
+            "FreeFlow never leaves your transcribed text on the clipboard when a text box is active."
+        ]
+    },
+    "rate_limit": {
+        "title": "Rate Limits & Whisper Models",
+        "category": "RATE_LIMIT",
+        "icon": "⏱️",
+        "summary": "Understanding Groq free-tier quotas and selecting speech recognition models.",
+        "steps": [
+            "Groq's free tier has generous per-minute (RPM) and daily audio limits.",
+            "If you receive rate limit 429, wait 30–60 seconds for the window to reset.",
+            "In Preferences, you can switch between 'whisper-large-v3' and 'whisper-large-v3-turbo'.",
+            "You can monitor your live usage anytime at console.groq.com."
+        ],
+        "primary_label": "Open Groq Console",
+        "primary_id": "open_groq_console",
+        "secondary_label": "Open Preferences",
+        "secondary_id": "open_settings",
+        "extra_tips": [
+            "Whisper Large v3 Turbo provides faster response times with identical accuracy."
+        ]
+    }
+}
 
 
 def sanitize_error_text(text: str) -> str:
     """Redact API keys, tokens, and sensitive personal paths from error outputs."""
     if not text:
         return ""
-    # Redact Groq API Keys (e.g., gsk_1234567890abcdef...)
     sanitized = re.sub(r'gsk_[a-zA-Z0-9_-]{10,}', 'gsk_<REDACTED_API_KEY>', text)
-    # Redact generic bearer/auth tokens
     sanitized = re.sub(r'(bearer\s+)[a-zA-Z0-9_\-\.]{15,}', r'\1<REDACTED_TOKEN>', sanitized, flags=re.IGNORECASE)
-    # Redact user home directory names in filepaths
     home_dir = os.path.expanduser("~")
     if home_dir and home_dir in sanitized:
         sanitized = sanitized.replace(home_dir, "~")
@@ -61,7 +160,6 @@ def generate_github_issue_url(
     """Generate a direct URL to open a pre-filled GitHub Issue for FreeFlow."""
     sanitized_err = sanitize_error_text(error_details)
     
-    # System info gathering
     sys_os = platform.system()
     sys_release = platform.release()
     sys_version = platform.version()
@@ -69,7 +167,7 @@ def generate_github_issue_url(
     
     body = (
         f"### Description\n"
-        f"FreeFlow encountered an error in category **{category}**.\n\n"
+        f"FreeFlow issue in category **{category}**.\n\n"
         f"### Error Details\n"
         f"```text\n{sanitized_err}\n```\n\n"
         f"### Environment\n"
@@ -91,14 +189,47 @@ def generate_github_issue_url(
     return f"{GITHUB_REPO_URL}/issues/new?{encoded_query}"
 
 
+def get_common_diagnostic(topic_key: Optional[str] = None) -> ErrorDiagnostic:
+    """
+    Return a friendly, non-error diagnostic guide for common troubleshooting topics.
+    Used when opening the guide manually from Settings or Tray menu without an active error.
+    """
+    key = topic_key if topic_key in COMMON_TOPICS else "api_key"
+    topic = COMMON_TOPICS[key]
+
+    diag = ErrorDiagnostic(
+        category=topic["category"],
+        title=topic["title"],
+        summary=topic["summary"],
+        steps=topic["steps"],
+        primary_action_label=topic["primary_label"],
+        primary_action_id=topic["primary_id"],
+        secondary_action_label=topic["secondary_label"],
+        secondary_action_id=topic["secondary_id"],
+        raw_error="",
+        sanitized_error="System Status: Normal. No active runtime error recorded.",
+        github_issue_url=generate_github_issue_url(topic["title"], topic["category"], "User opened common troubleshooting guide"),
+        extra_tips=topic.get("extra_tips", []),
+        is_error=False
+    )
+    return diag
+
+
 def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> ErrorDiagnostic:
     """
     Analyze error output and return structured diagnosis with step-by-step solutions.
-    Handles invalid API keys, network/firewall blocks on Windows/Linux/macOS,
-    rate limits, empty audio captures, and missing models.
+    If no error is provided, returns the Common Troubleshooting Guide.
     """
     err = str(error_str or "").strip()
     err_lower = err.lower()
+
+    # Normal check or empty: return Common Troubleshooting Guide
+    if not err or err_lower in (
+        "normal", "general", "status check: normal diagnostics",
+        "normal diagnostics check", "common", "help", "common troubleshooting"
+    ):
+        return get_common_diagnostic("api_key")
+
     sanitized = sanitize_error_text(err)
 
     # 1. Invalid or Missing Groq API Key
@@ -134,7 +265,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
             secondary_action_id="open_groq_console",
             raw_error=err,
             sanitized_error=sanitized,
-            extra_tips=extra_tips
+            extra_tips=extra_tips,
+            is_error=True
         )
         diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
         return diag
@@ -155,8 +287,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
         steps = [
             "Verify your computer has an active internet connection.",
             "Windows Defender / Firewall: Ensure Python or FreeFlow is allowed through Windows Defender Firewall.",
-            "Antivirus / VPN: If using a VPN, corporate proxy, or third-party antivirus (Avast, McAfee), temporarily whitelist api.groq.com.",
-            "DNS Resolution: Ensure your network can resolve api.groq.com (try pinging or browsing to https://api.groq.com).",
+            "Antivirus / VPN: If using a VPN, corporate proxy, or third-party antivirus, temporarily whitelist api.groq.com:443.",
+            "DNS Resolution: Ensure your network can resolve api.groq.com.",
             "Click 'Test Connection' below to verify when connectivity is restored."
         ]
         extra_tips = [
@@ -174,7 +306,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
             secondary_action_id="open_settings",
             raw_error=err,
             sanitized_error=sanitized,
-            extra_tips=extra_tips
+            extra_tips=extra_tips,
+            is_error=True
         )
         diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
         return diag
@@ -206,7 +339,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
             secondary_action_id="open_settings",
             raw_error=err,
             sanitized_error=sanitized,
-            extra_tips=extra_tips
+            extra_tips=extra_tips,
+            is_error=True
         )
         diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
         return diag
@@ -243,7 +377,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
             secondary_action_id="open_settings",
             raw_error=err,
             sanitized_error=sanitized,
-            extra_tips=extra_tips
+            extra_tips=extra_tips,
+            is_error=True
         )
         diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
         return diag
@@ -269,12 +404,13 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
             primary_action_label="Open Preferences",
             primary_action_id="open_settings",
             raw_error=err,
-            sanitized_error=sanitized
+            sanitized_error=sanitized,
+            is_error=True
         )
         diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
         return diag
 
-    # 6. Generic or Unknown Error Fallback
+    # 6. Generic or Unknown Error Fallback (Only when an actual error string was given)
     category = "UNKNOWN"
     title = "Transcription Error Encountered"
     summary = (
@@ -297,7 +433,8 @@ def diagnose_error(error_str: str, context: Optional[Dict[str, str]] = None) -> 
         secondary_action_label="Report Issue on GitHub",
         secondary_action_id="report_github",
         raw_error=err,
-        sanitized_error=sanitized
+        sanitized_error=sanitized,
+        is_error=True
     )
     diag.github_issue_url = generate_github_issue_url(title, category, sanitized)
     return diag

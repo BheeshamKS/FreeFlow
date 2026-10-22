@@ -49,7 +49,7 @@ from core.hotkey import HotkeyListener
 from core.injector import TextInjector
 from core.recorder import AudioRecorder
 from core.single_instance import SingleInstanceGuard
-from core.troubleshooting import diagnose_error, ErrorDiagnostic
+from core.troubleshooting import diagnose_error, get_common_diagnostic, ErrorDiagnostic
 from core.updater import UpdateManager
 from core.version import APP_VERSION
 from ui.hud import RecordingHUD
@@ -178,6 +178,7 @@ class FreeFlowApplication(QObject):
         # Main Window Hub Actions
         self.main_window.toggle_recording_requested.connect(self.hotkey_listener.trigger_toggle_manual)
         self.main_window.settings_changed.connect(self.on_settings_changed)
+        self.main_window.simulate_error_requested.connect(self.simulate_error)
         self.main_window.quit_requested.connect(self.quit)
 
     def on_activation_requested(self, msg: str):
@@ -306,11 +307,21 @@ class FreeFlowApplication(QObject):
 
     def show_troubleshooting_dialog(self, error_details: Optional[str] = None):
         """Display the interactive troubleshooting and solutions dialog."""
-        err = error_details or getattr(self, "_last_error", "") or "Normal Diagnostics Check"
-        diagnostic = diagnose_error(err)
+        if error_details and str(error_details).strip():
+            diagnostic = diagnose_error(str(error_details).strip())
+        else:
+            # When opened from tray or settings menu without an active error, show common troubleshooting
+            diagnostic = get_common_diagnostic("api_key")
+
         dialog = TroubleshootingDialog(self.main_window, diagnostic=diagnostic, config=self.config)
         dialog.open_settings_requested.connect(self._on_solutions_open_settings)
+        dialog.simulate_error_requested.connect(self.simulate_error)
         dialog.exec()
+
+    def simulate_error(self, error_msg: str):
+        """Simulate an error scenario on the HUD and tray to test error handling."""
+        logger.info(f"Triggering simulated error for user testing: {error_msg}")
+        self._on_groq_error(error_msg)
 
     def _on_solutions_open_settings(self, tab_index: int = 2):
         self.main_window._switch_tab(tab_index)

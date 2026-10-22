@@ -240,6 +240,29 @@ class TestTroubleshootingAndErrorDiagnostics(unittest.TestCase):
         self.assertIn("Windows+SSL+Timeout", url)
         self.assertIn("FreeFlow+Version", url)
 
+    def test_diagnose_empty_returns_common_guide_not_error(self):
+        from core.troubleshooting import diagnose_error
+        diag = diagnose_error("")
+        self.assertFalse(diag.is_error)
+        self.assertNotIn("Transcription Error", diag.title)
+        self.assertIn("Groq API Key Setup", diag.title)
+
+        diag_check = diagnose_error("Normal Diagnostics Check")
+        self.assertFalse(diag_check.is_error)
+        self.assertNotIn("Transcription Error", diag_check.title)
+
+    def test_get_common_diagnostic_topics(self):
+        from core.troubleshooting import get_common_diagnostic, COMMON_TOPICS
+        self.assertIn("api_key", COMMON_TOPICS)
+        self.assertIn("connection", COMMON_TOPICS)
+        self.assertIn("microphone", COMMON_TOPICS)
+        self.assertIn("injection", COMMON_TOPICS)
+        self.assertIn("rate_limit", COMMON_TOPICS)
+
+        conn_diag = get_common_diagnostic("connection")
+        self.assertFalse(conn_diag.is_error)
+        self.assertIn("Windows Firewall", conn_diag.title)
+
 
 class TestActiveTextBoxAndSmartClipboard(unittest.TestCase):
     """Test active input box detection and smart clipboard fallback."""
@@ -366,6 +389,17 @@ class TestHUDEnhancements(unittest.TestCase):
         dlg._copy_diagnostic_details()
         self.assertFalse(dlg.lbl_test_result.isHidden())
         self.assertIn("copied to clipboard", dlg.lbl_test_result.text())
+
+        # Test switching to connection topic
+        dlg._select_topic("connection")
+        self.assertIn("Windows Firewall", dlg.lbl_title.text())
+        self.assertFalse(dlg.diagnostic.is_error)
+
+        # Test error simulation signal
+        simulated = []
+        dlg.simulate_error_requested.connect(lambda msg: simulated.append(msg))
+        dlg.simulate_error_requested.emit("Simulated Test Error")
+        self.assertEqual(simulated, ["Simulated Test Error"])
         dlg.close()
 
 
