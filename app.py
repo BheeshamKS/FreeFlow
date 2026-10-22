@@ -34,7 +34,7 @@ logger = logging.getLogger("FreeFlow.App")
 
 # Ensure PyQt6 is available
 try:
-    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtCore import Qt, QTimer, QObject
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import QApplication, QMessageBox
 except ImportError:
@@ -56,7 +56,7 @@ from ui.onboarding import OnboardingWizard
 from ui.tray import SystemTrayController
 
 
-class FreeFlowApplication:
+class FreeFlowApplication(QObject):
     """
     Main Application Controller.
     Manages the Wispr Flow Hub window, floating HUD capsule, tray icon,
@@ -64,6 +64,7 @@ class FreeFlowApplication:
     """
 
     def __init__(self, qapp: QApplication, start_minimized: bool = False, is_autostart: bool = False):
+        super().__init__()
         self.qapp = qapp
         self.qapp.setApplicationName("FreeFlow")
         self.qapp.setApplicationDisplayName("FreeFlow")
