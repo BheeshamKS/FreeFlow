@@ -36,7 +36,7 @@ logger = logging.getLogger("FreeFlow.App")
 try:
     from PyQt6.QtCore import Qt, QTimer
     from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QMessageBox
 except ImportError:
     print("Error: PyQt6 is not installed. Please run './setup.sh' to install all dependencies.")
     sys.exit(1)
@@ -48,12 +48,12 @@ from core.hotkey import HotkeyListener
 from core.injector import TextInjector
 from core.recorder import AudioRecorder
 from core.single_instance import SingleInstanceGuard
+from core.updater import UpdateManager
+from core.version import APP_VERSION
 from ui.hud import RecordingHUD
 from ui.main_window import MainWindow
 from ui.onboarding import OnboardingWizard
 from ui.tray import SystemTrayController
-
-APP_VERSION = "1.0.0"
 
 
 class FreeFlowApplication:
@@ -63,7 +63,7 @@ class FreeFlowApplication:
     single-instance IPC, audio recording, Whisper transcription, and text injection.
     """
 
-    def __init__(self, qapp: QApplication, start_minimized: bool = False):
+    def __init__(self, qapp: QApplication, start_minimized: bool = False, is_autostart: bool = False):
         self.qapp = qapp
         self.qapp.setApplicationName("FreeFlow")
         self.qapp.setApplicationDisplayName("FreeFlow")
@@ -93,7 +93,8 @@ class FreeFlowApplication:
         # 3. Instantiate Core Workers
         self.recorder = AudioRecorder(
             sample_rate=self.config.sample_rate,
-            channels=self.config.channels
+            channels=self.config.channels,
+            device=self.config.audio_device
         )
         self.injector = TextInjector(
             inject_delay=self.config.inject_delay,
@@ -124,11 +125,26 @@ class FreeFlowApplication:
             logger.info("First run or missing API key detected. Launching Onboarding Wizard...")
             QTimer.singleShot(150, self.open_onboarding_wizard)
         else:
-            should_show = not (start_minimized or (self.config.autostart and self.config.start_minimized and "--minimized" in sys.argv))
+            # Check if launched automatically on graphical system login / boot
+            is_boot_startup = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv)
+            if start_minimized:
+                should_show = False
+            elif is_boot_startup:
+                # If started automatically on boot, respect start_minimized setting!
+                should_show = not self.config.start_minimized
+                logger.info(f"Launched on boot/login. start_minimized={self.config.start_minimized} -> should_show={should_show}")
+            else:
+                # Normal manual launch by user clicking app
+                should_show = True
+
             if should_show:
                 self.main_window.show()
                 self.main_window.raise_()
                 self.main_window.activateWindow()
+
+        # 9. Startup Update Check
+        if self.config.check_updates_on_startup:
+            QTimer.singleShot(3000, self._check_startup_updates)
 
         logger.info("FreeFlow desktop application initialized successfully.")
 
@@ -147,6 +163,7 @@ class FreeFlowApplication:
         # System Tray Actions
         self.tray.open_hub_requested.connect(self.show_main_window)
         self.tray.open_settings_requested.connect(self.open_settings)
+        self.tray.check_updates_requested.connect(self._manual_check_updates)
         self.tray.toggle_recording_requested.connect(self.hotkey_listener.trigger_toggle_manual)
         self.tray.quit_requested.connect(self.quit)
 
@@ -277,12 +294,69 @@ class FreeFlowApplication:
         """Update runtime components when preferences change."""
         self.config = new_config
         self.recorder.sample_rate = self.config.sample_rate
+        self.recorder.set_device(self.config.audio_device)
         self.injector.inject_delay = self.config.inject_delay
         self.hotkey_listener.update_config(self.config)
         self.tray.config = self.config
         self.tray.update_tooltip("Ready")
         self.tray._build_menu()
         logger.info("Application preferences reloaded.")
+
+    def _check_startup_updates(self):
+        """Asynchronously query GitHub Releases on startup in background."""
+        logger.info("Checking for FreeFlow updates on startup...")
+        self.updater = UpdateManager(APP_VERSION, self)
+        self.updater.update_available.connect(self._on_startup_update_available)
+        self.updater.check_for_updates()
+
+    def _manual_check_updates(self):
+        """Trigger update check from system tray menu."""
+        logger.info("Manual update check requested from tray.")
+        self.updater = UpdateManager(APP_VERSION, self)
+        self.updater.update_available.connect(self._on_startup_update_available)
+        self.updater.up_to_date.connect(
+            lambda: self.tray.send_desktop_notification(
+                "FreeFlow Updates", "FreeFlow is up to date!", icon="dialog-information"
+            )
+        )
+        self.updater.check_error.connect(
+            lambda err: self.tray.notify_error("Could not check for updates.")
+        )
+        self.updater.check_for_updates()
+
+    def _on_startup_update_available(self, tag: str, notes: str, asset: dict):
+        logger.info(f"Update available: {tag} (auto_update_mode={self.config.auto_update_mode})")
+        self.main_window.show_update_banner(tag, notes, self.updater)
+
+        if self.config.auto_update_mode == "auto":
+            # Auto-update: download asset quietly in background, then prompt to restart
+            logger.info(f"Auto-update enabled: downloading {tag} in background...")
+            self.updater.download_finished.connect(
+                lambda path: self._prompt_restart_after_download(tag)
+            )
+            self.updater.start_download()
+        else:
+            # Ask before updating: notify user
+            self.tray.send_desktop_notification(
+                title="FreeFlow Update Available",
+                message=f"FreeFlow {tag} is available! Open FreeFlow to update.",
+                icon="system-software-update",
+                urgency="normal",
+                expire_ms=6000
+            )
+
+    def _prompt_restart_after_download(self, tag: str):
+        """Prompt user with restart dialog once background download finishes."""
+        ans = QMessageBox.question(
+            self.main_window if self.main_window.isVisible() else None,
+            "FreeFlow Update Ready",
+            f"FreeFlow {tag} has been downloaded and is ready to apply!\n\n"
+            f"Restart FreeFlow now to complete the update?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            self.updater.apply_update_and_restart()
 
     def quit(self):
         """Clean application shutdown."""
@@ -300,12 +374,17 @@ class FreeFlowApplication:
 def parse_arguments():
     """Parse command line flags."""
     parser = argparse.ArgumentParser(
-        description="FreeFlow Linux — Global Voice-to-Text Transcription Desktop Application"
+        description="FreeFlow — Global Voice-to-Text Transcription Desktop Application"
     )
     parser.add_argument(
         "--minimized",
         action="store_true",
         help="Start FreeFlow minimized to the system tray (used for autostart on boot)"
+    )
+    parser.add_argument(
+        "--autostart",
+        action="store_true",
+        help="Indicates FreeFlow was launched automatically on system login/boot"
     )
     parser.add_argument(
         "--settings",
@@ -331,7 +410,11 @@ def main():
     args = parse_arguments()
 
     app = QApplication(sys.argv)
-    freeflow = FreeFlowApplication(app, start_minimized=args.minimized)
+    freeflow = FreeFlowApplication(
+        app,
+        start_minimized=args.minimized,
+        is_autostart=args.autostart
+    )
 
     if args.setup:
         freeflow.open_onboarding_wizard()

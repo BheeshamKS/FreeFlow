@@ -25,6 +25,10 @@ except ImportError:
 
 from core.config import AppConfig
 from core.groq_client import GroqService
+from core.recorder import list_input_devices
+from core.autostart import set_autostart
+from core.updater import UpdateManager
+from core.version import APP_VERSION
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 logger = logging.getLogger("FreeFlow.Settings")
@@ -153,12 +157,75 @@ class SettingsDialog(QDialog):
         self.chk_autostart.setChecked(self.config.autostart)
         sys_layout.addWidget(self.chk_autostart)
 
+        self.chk_start_minimized = QCheckBox("Start minimized to system tray on boot")
+        self.chk_start_minimized.setChecked(self.config.start_minimized)
+        sys_layout.addWidget(self.chk_start_minimized)
+
+        self.chk_close_to_tray = QCheckBox("Closing window hides to tray instead of quitting")
+        self.chk_close_to_tray.setChecked(self.config.close_to_tray)
+        sys_layout.addWidget(self.chk_close_to_tray)
+
         layout.addWidget(sys_group)
+
+        # 4. Software Updates
+        update_group = QGroupBox("Software Updates")
+        update_layout = QVBoxLayout(update_group)
+
+        self.chk_updates = QCheckBox("Automatically check for updates on startup")
+        self.chk_updates.setChecked(self.config.check_updates_on_startup)
+        update_layout.addWidget(self.chk_updates)
+
+        mode_box = QVBoxLayout()
+        mode_box.setContentsMargins(16, 2, 0, 4)
+        mode_box.setSpacing(4)
+        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart")
+        self.radio_update_ask = QRadioButton("Ask before updating: Show notification when update is available")
+
+        self.update_mode_group = QButtonGroup(self)
+        self.update_mode_group.addButton(self.radio_update_auto)
+        self.update_mode_group.addButton(self.radio_update_ask)
+
+        if self.config.auto_update_mode == "auto":
+            self.radio_update_auto.setChecked(True)
+        else:
+            self.radio_update_ask.setChecked(True)
+
+        mode_box.addWidget(self.radio_update_auto)
+        mode_box.addWidget(self.radio_update_ask)
+        update_layout.addLayout(mode_box)
+
+        # Update check action row
+        check_row = QHBoxLayout()
+        lbl_version = QLabel(f"Installed: <b>v{APP_VERSION}</b>")
+        check_row.addWidget(lbl_version)
+        check_row.addSpacing(10)
+
+        self.lbl_update_status = QLabel("")
+        self.lbl_update_status.setStyleSheet("color: #8a8f98; font-size: 12px;")
+        check_row.addWidget(self.lbl_update_status, 1)
+
+        self.btn_check_updates = QPushButton("Check for Updates")
+        self.btn_check_updates.clicked.connect(self._check_for_updates)
+        check_row.addWidget(self.btn_check_updates)
+        update_layout.addLayout(check_row)
+
+        layout.addWidget(update_group)
         layout.addStretch()
 
     def _setup_ai_tab(self):
         layout = QVBoxLayout(self.tab_ai)
         form = QFormLayout()
+
+        # Microphone Device Selection
+        mic_layout = QHBoxLayout()
+        self.combo_device = QComboBox()
+        self.btn_refresh_mics = QPushButton("Refresh")
+        self.btn_refresh_mics.setFixedWidth(75)
+        self.btn_refresh_mics.clicked.connect(self._populate_audio_devices)
+        mic_layout.addWidget(self.combo_device, 1)
+        mic_layout.addWidget(self.btn_refresh_mics)
+        form.addRow("Microphone:", mic_layout)
+        self._populate_audio_devices()
 
         # Whisper Model
         self.combo_whisper = QComboBox()
@@ -321,6 +388,86 @@ class SettingsDialog(QDialog):
         self.combo_llm.setEnabled(checked)
         self.txt_prompt.setEnabled(checked)
 
+    def _populate_audio_devices(self):
+        """Query connected microphones and populate the device selector dropdown."""
+        curr_device = self.config.audio_device
+        self.combo_device.clear()
+        self.combo_device.addItem("System Default Microphone", "")
+        
+        devices = list_input_devices()
+        selected_idx = 0
+        for i, dev in enumerate(devices):
+            display = f"{dev['name']} ({dev['channels']} ch)"
+            if dev.get('default'):
+                display += " [Default]"
+            self.combo_device.addItem(display, dev['name'])
+            if curr_device and curr_device.strip() == dev['name'].strip():
+                selected_idx = i + 1
+
+        self.combo_device.setCurrentIndex(selected_idx)
+
+    def _check_for_updates(self):
+        """Initiate manual update check."""
+        self.btn_check_updates.setEnabled(False)
+        self.lbl_update_status.setText("Checking GitHub...")
+        self.lbl_update_status.setStyleSheet("color: #8a8f98; font-size: 12px;")
+
+        self._settings_updater = UpdateManager(APP_VERSION, self)
+        self._settings_updater.update_available.connect(self._on_settings_update_available)
+        self._settings_updater.up_to_date.connect(self._on_settings_up_to_date)
+        self._settings_updater.check_error.connect(self._on_settings_check_error)
+        self._settings_updater.check_for_updates()
+
+    def _on_settings_update_available(self, tag: str, notes: str, asset: dict):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText(f"Update {tag} is available!")
+        self.lbl_update_status.setStyleSheet("color: #10b981; font-weight: 600; font-size: 12px;")
+        
+        ans = QMessageBox.question(
+            self,
+            "FreeFlow Update Available",
+            f"A newer version ({tag}) of FreeFlow is available!\n\n"
+            f"Would you like to download and install this update automatically now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes
+        )
+        if ans == QMessageBox.StandardButton.Yes:
+            self._start_update_download(self._settings_updater)
+
+    def _on_settings_up_to_date(self):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText("FreeFlow is up to date.")
+        self.lbl_update_status.setStyleSheet("color: #8a8f98; font-size: 12px;")
+
+    def _on_settings_check_error(self, err: str):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText("Could not reach GitHub.")
+        self.lbl_update_status.setStyleSheet("color: #ef4444; font-size: 12px;")
+
+    def _start_update_download(self, updater: UpdateManager):
+        self.lbl_update_status.setText("Downloading update...")
+        self.btn_check_updates.setEnabled(False)
+        updater.download_progress.connect(lambda pct: self.lbl_update_status.setText(f"Downloading: {pct}%"))
+        updater.download_finished.connect(lambda path: self._on_download_ready(updater))
+        updater.download_error.connect(lambda err: self._on_download_err(err))
+        updater.start_download()
+
+    def _on_download_ready(self, updater: UpdateManager):
+        self.lbl_update_status.setText("Update ready. Restarting...")
+        ans = QMessageBox.information(
+            self,
+            "Update Ready",
+            "Update downloaded successfully! FreeFlow will now restart to apply changes.",
+            QMessageBox.StandardButton.Ok
+        )
+        updater.apply_update_and_restart()
+
+    def _on_download_err(self, err: str):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText("Download failed.")
+        self.lbl_update_status.setStyleSheet("color: #ef4444; font-size: 12px;")
+        QMessageBox.warning(self, "Update Error", f"Failed to download update:\n{err}")
+
     def _save_settings(self):
         """Save form data into config and persist to disk."""
         self.config.groq_api_key = self.input_api_key.text().strip()
@@ -331,12 +478,18 @@ class SettingsDialog(QDialog):
         self.config.show_hud = self.chk_hud.isChecked()
         self.config.enable_notifications = self.chk_notify.isChecked()
         
-        # Handle autostart change
-        old_autostart = self.config.autostart
-        new_autostart = self.chk_autostart.isChecked()
-        self.config.autostart = new_autostart
-        if old_autostart != new_autostart:
-            self._update_systemd_autostart(new_autostart)
+        # Handle autostart and minimize on boot
+        self.config.autostart = self.chk_autostart.isChecked()
+        self.config.start_minimized = self.chk_start_minimized.isChecked()
+        self.config.close_to_tray = self.chk_close_to_tray.isChecked()
+        set_autostart(self.config.autostart, self.config.start_minimized)
+
+        # Handle audio device
+        self.config.audio_device = self.combo_device.currentData() or None
+
+        # Handle update preferences
+        self.config.check_updates_on_startup = self.chk_updates.isChecked()
+        self.config.auto_update_mode = "auto" if self.radio_update_auto.isChecked() else "ask"
 
         self.config.transcription_model = self.combo_whisper.currentData()
         self.config.sample_rate = int(self.combo_rate.currentData())
@@ -353,12 +506,3 @@ class SettingsDialog(QDialog):
             self.settings_saved.emit(self.config)
 
         self.accept()
-
-    def _update_systemd_autostart(self, enable: bool):
-        """Enable or disable systemd user service."""
-        cmd = ["systemctl", "--user", "enable" if enable else "disable", "freeflow.service"]
-        try:
-            subprocess.run(cmd, capture_output=True, timeout=3.0)
-            logger.info(f"Updated systemd autostart: {enable}")
-        except Exception as e:
-            logger.debug(f"Could not update systemd service autostart: {e}")

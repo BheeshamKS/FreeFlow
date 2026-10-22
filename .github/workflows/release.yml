@@ -49,12 +49,18 @@ jobs:
       - name: Generate Debian Package (.deb)
         run: |
           chmod +x packaging/build_deb.sh
-          ./packaging/build_deb.sh
+          RELEASE_VER="${GITHUB_REF_NAME#v}"
+          [ -z "$RELEASE_VER" ] && RELEASE_VER="${{ github.event.inputs.tag_name }}"
+          RELEASE_VER="${RELEASE_VER#v}"
+          ./packaging/build_deb.sh "${RELEASE_VER:-1.2.0}"
 
       - name: Generate AppImage & Portable Tarball
         run: |
           chmod +x packaging/build_appimage.sh
-          ./packaging/build_appimage.sh
+          RELEASE_VER="${GITHUB_REF_NAME#v}"
+          [ -z "$RELEASE_VER" ] && RELEASE_VER="${{ github.event.inputs.tag_name }}"
+          RELEASE_VER="${RELEASE_VER#v}"
+          ./packaging/build_appimage.sh "${RELEASE_VER:-1.2.0}"
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
@@ -145,7 +151,10 @@ jobs:
       - name: Package macOS DMG
         run: |
           chmod +x packaging/macos/build_dmg.sh
-          ./packaging/macos/build_dmg.sh
+          RELEASE_VER="${GITHUB_REF_NAME#v}"
+          [ -z "$RELEASE_VER" ] && RELEASE_VER="${{ github.event.inputs.tag_name }}"
+          RELEASE_VER="${RELEASE_VER#v}"
+          ./packaging/macos/build_dmg.sh "${RELEASE_VER:-1.2.0}"
 
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4

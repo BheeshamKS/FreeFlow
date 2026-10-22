@@ -38,6 +38,79 @@ except ImportError:
 logger = logging.getLogger("FreeFlow.Recorder")
 
 
+def list_input_devices() -> List[dict]:
+    """
+    Query available audio input devices (microphones) via sounddevice.
+    Returns list of device dictionaries with 'id', 'name', 'channels', and 'default'.
+    """
+    devices = []
+    if sd is None:
+        return devices
+
+    try:
+        dev_list = sd.query_devices()
+        default_in = None
+        try:
+            default_in = sd.default.device[0]
+        except Exception:
+            pass
+
+        for idx, dev in enumerate(dev_list):
+            max_in = dev.get("max_input_channels", 0)
+            if max_in > 0:
+                name = dev.get("name", f"Microphone {idx}").strip()
+                is_def = (idx == default_in)
+                devices.append({
+                    "id": idx,
+                    "name": name,
+                    "channels": max_in,
+                    "hostapi": dev.get("hostapi", 0),
+                    "default": is_def
+                })
+    except Exception as e:
+        logger.warning(f"Failed to query audio input devices: {e}")
+
+    return devices
+
+
+def resolve_device_index(device_val) -> Optional[int]:
+    """
+    Safely resolve a device name string or index to a valid sounddevice input index.
+    Returns None if default or device not found.
+    """
+    if sd is None or device_val is None:
+        return None
+    val_str = str(device_val).strip()
+    if not val_str or val_str.lower() in ("default", "none"):
+        return None
+
+    try:
+        # Check if integer index
+        idx = int(val_str)
+        dev = sd.query_devices(idx)
+        if dev and dev.get("max_input_channels", 0) > 0:
+            return idx
+    except Exception:
+        pass
+
+    # Search by exact name
+    try:
+        devices = sd.query_devices()
+        for idx, dev in enumerate(devices):
+            if dev.get("max_input_channels", 0) > 0:
+                if dev.get("name", "").strip() == val_str:
+                    return idx
+        # Fallback to substring matching
+        for idx, dev in enumerate(devices):
+            if dev.get("max_input_channels", 0) > 0:
+                if val_str.lower() in dev.get("name", "").strip().lower():
+                    return idx
+    except Exception as e:
+        logger.debug(f"Device resolution lookup error: {e}")
+
+    return None
+
+
 class AudioRecorder(QObject):
     """
     Microphone recorder with dual engine support:
@@ -76,6 +149,12 @@ class AudioRecorder(QObject):
     def is_recording(self) -> bool:
         return self._is_recording
 
+    def set_device(self, device: Optional[str]):
+        """Update active input microphone device."""
+        self.device = device
+        resolved = resolve_device_index(device)
+        logger.info(f"AudioRecorder device set to: '{device}' (resolved index: {resolved})")
+
     def start(self) -> bool:
         """Start recording from default or selected audio input device."""
         if self._is_recording:
@@ -88,16 +167,18 @@ class AudioRecorder(QObject):
         # Engine 1: sounddevice (if PortAudio is installed)
         if sd is not None:
             try:
+                target_dev = resolve_device_index(self.device)
                 self._stream = sd.InputStream(
                     samplerate=self.sample_rate,
                     channels=self.channels,
                     dtype="float32",
-                    device=self.device,
+                    device=target_dev,
                     callback=self._audio_callback
                 )
                 self._stream.start()
                 self._is_recording = True
-                logger.info(f"sounddevice recording started (rate={self.sample_rate}Hz, channels={self.channels})")
+                dev_name = self.device or "system default"
+                logger.info(f"sounddevice recording started on '{dev_name}' (rate={self.sample_rate}Hz, channels={self.channels})")
 
                 if self.recording_started:
                     self.recording_started.emit()

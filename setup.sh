@@ -248,7 +248,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=${VENV_PYTHON} ${SCRIPT_DIR}/app.py --minimized
+ExecStart=${VENV_PYTHON} ${SCRIPT_DIR}/app.py --autostart --minimized
 WorkingDirectory=${SCRIPT_DIR}
 Environment=PYTHONUNBUFFERED=1
 Environment=DISPLAY=:0

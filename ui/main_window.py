@@ -35,6 +35,10 @@ from core.config import AppConfig
 from core.history import HistoryManager, HistoryEntry
 from core.platform import is_linux, is_macos, is_windows
 from core.groq_client import GroqService
+from core.recorder import list_input_devices
+from core.autostart import set_autostart
+from core.updater import UpdateManager
+from core.version import APP_VERSION
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 
@@ -301,10 +305,21 @@ class MainWindow(QMainWindow):
         self.sidebar = self._build_sidebar()
         root.addWidget(self.sidebar)
 
-        # 2. Main Content Canvas
+        # 2. Main Content Area with Top Update Banner
+        content_container = QWidget(self)
+        content_layout = QVBoxLayout(content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
+        self._active_updater: Optional[UpdateManager] = None
+        self.update_banner = self._build_update_banner()
+        self.update_banner.hide()
+        content_layout.addWidget(self.update_banner)
+
         self.stack = QStackedWidget(self)
         self.stack.setObjectName("ContentCanvas")
-        root.addWidget(self.stack)
+        content_layout.addWidget(self.stack)
+        root.addWidget(content_container)
 
         # Views
         self.page_dashboard = self._build_dashboard_page()
@@ -872,11 +887,32 @@ class MainWindow(QMainWindow):
         hk_layout.addWidget(self.radio_hold)
         layout.addWidget(card_hotkey)
 
-        # 2. Window & Autostart Section
+        # 2. Audio & Microphone Hardware
+        card_audio = self._create_section_card("Audio & Microphone Device")
+        au_layout = card_audio.layout()
+
+        mic_desc = QLabel("Select the physical or virtual microphone FreeFlow records from:")
+        mic_desc.setStyleSheet("font-size: 12px; color: #8a8f98; margin-bottom: 6px;")
+        au_layout.addWidget(mic_desc)
+
+        mic_row = QHBoxLayout()
+        self.combo_device = QComboBox()
+        self.btn_refresh_mics = QPushButton("Refresh Devices")
+        self.btn_refresh_mics.setObjectName("GhostAction")
+        self.btn_refresh_mics.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh_mics.setFixedWidth(130)
+        self.btn_refresh_mics.clicked.connect(self._populate_audio_devices)
+        mic_row.addWidget(self.combo_device, 1)
+        mic_row.addWidget(self.btn_refresh_mics)
+        au_layout.addLayout(mic_row)
+        self._populate_audio_devices()
+        layout.addWidget(card_audio)
+
+        # 3. Window & Autostart Section
         card_launch = self._create_section_card("Startup & Window Behavior")
         l_layout = card_launch.layout()
 
-        self.chk_autostart = QCheckBox("Start FreeFlow automatically on system login (systemd autostart)")
+        self.chk_autostart = QCheckBox("Start FreeFlow automatically on system login")
         self.chk_autostart.setChecked(self.config.autostart)
         l_layout.addWidget(self.chk_autostart)
 
@@ -893,7 +929,52 @@ class MainWindow(QMainWindow):
         l_layout.addWidget(self.chk_show_hud)
         layout.addWidget(card_launch)
 
-        # 3. Groq API Section
+        # 4. Software Updates Section
+        card_updates = self._create_section_card("Software Updates")
+        up_layout = card_updates.layout()
+
+        self.chk_updates = QCheckBox("Check for updates automatically on startup")
+        self.chk_updates.setChecked(self.config.check_updates_on_startup)
+        up_layout.addWidget(self.chk_updates)
+
+        u_mode_layout = QVBoxLayout()
+        u_mode_layout.setContentsMargins(18, 4, 0, 8)
+        u_mode_layout.setSpacing(6)
+
+        self.radio_update_auto = QRadioButton("Auto-update: Download in background and prompt to restart")
+        self.radio_update_ask = QRadioButton("Ask before updating: Show notification when update is available")
+
+        self.bg_update_mode = QButtonGroup(self)
+        self.bg_update_mode.addButton(self.radio_update_auto)
+        self.bg_update_mode.addButton(self.radio_update_ask)
+
+        if self.config.auto_update_mode == "auto":
+            self.radio_update_auto.setChecked(True)
+        else:
+            self.radio_update_ask.setChecked(True)
+
+        u_mode_layout.addWidget(self.radio_update_auto)
+        u_mode_layout.addWidget(self.radio_update_ask)
+        up_layout.addLayout(u_mode_layout)
+
+        check_row = QHBoxLayout()
+        lbl_v = QLabel(f"Current version: <b>v{APP_VERSION}</b>")
+        lbl_v.setStyleSheet("font-size: 13px; color: #8a8f98;")
+        check_row.addWidget(lbl_v)
+
+        self.lbl_update_status = QLabel("")
+        self.lbl_update_status.setStyleSheet("font-size: 12px; color: #8a8f98;")
+        check_row.addWidget(self.lbl_update_status, 1)
+
+        self.btn_check_updates = QPushButton("Check for Updates Now")
+        self.btn_check_updates.setObjectName("GhostAction")
+        self.btn_check_updates.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_check_updates.clicked.connect(self._check_for_updates)
+        check_row.addWidget(self.btn_check_updates)
+        up_layout.addLayout(check_row)
+        layout.addWidget(card_updates)
+
+        # 5. Groq API Section
         card_api = self._create_section_card("Groq Cloud Speech Engine")
         a_layout = card_api.layout()
 
@@ -1009,22 +1090,126 @@ class MainWindow(QMainWindow):
             self.btn_test.setEnabled(True)
             self.btn_test.setText("Test Connection")
 
+    def _build_update_banner(self) -> QFrame:
+        """Create sleek banner surfaced when a newer version of FreeFlow is available."""
+        banner = QFrame()
+        banner.setObjectName("UpdateBanner")
+        banner.setStyleSheet("""
+            QFrame#UpdateBanner {
+                background-color: #064e3b;
+                border-bottom: 1px solid #10b981;
+            }
+        """)
+        b_layout = QHBoxLayout(banner)
+        b_layout.setContentsMargins(20, 8, 20, 8)
+        b_layout.setSpacing(14)
+
+        self.lbl_banner_text = QLabel("● FreeFlow update available")
+        self.lbl_banner_text.setStyleSheet("color: #ecfdf5; font-size: 13px; font-weight: 500;")
+        b_layout.addWidget(self.lbl_banner_text, 1)
+
+        self.btn_banner_action = QPushButton("Update & Restart")
+        self.btn_banner_action.setObjectName("PrimaryAction")
+        self.btn_banner_action.setFixedHeight(28)
+        self.btn_banner_action.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_banner_action.clicked.connect(self._on_banner_update_clicked)
+        b_layout.addWidget(self.btn_banner_action)
+
+        btn_dismiss = QPushButton("✕")
+        btn_dismiss.setFixedSize(24, 24)
+        btn_dismiss.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_dismiss.setStyleSheet("background: transparent; border: none; color: #a7f3d0; font-size: 14px; font-weight: bold;")
+        btn_dismiss.clicked.connect(banner.hide)
+        b_layout.addWidget(btn_dismiss)
+
+        return banner
+
+    def show_update_banner(self, tag: str, notes: str, updater: UpdateManager):
+        """Surface update notification banner across top of window."""
+        self._active_updater = updater
+        self.lbl_banner_text.setText(f"● FreeFlow <b>{tag}</b> is available! Click to update seamlessly.")
+        self.btn_banner_action.setText("Update & Restart")
+        self.btn_banner_action.setEnabled(True)
+        self.update_banner.show()
+
+    def _on_banner_update_clicked(self):
+        if not self._active_updater:
+            return
+        self.btn_banner_action.setEnabled(False)
+        self.btn_banner_action.setText("Updating...")
+        self.lbl_banner_text.setText("Downloading latest release from GitHub...")
+        self._active_updater.download_progress.connect(
+            lambda pct: self.lbl_banner_text.setText(f"Downloading update: {pct}%")
+        )
+        self._active_updater.download_finished.connect(
+            lambda path: self._active_updater.apply_update_and_restart()
+        )
+        self._active_updater.download_error.connect(
+            lambda err: self.lbl_banner_text.setText(f"Update failed: {err}")
+        )
+        self._active_updater.start_download()
+
+    def _populate_audio_devices(self):
+        """Query connected microphones and populate the device selector dropdown."""
+        curr_device = self.config.audio_device
+        self.combo_device.clear()
+        self.combo_device.addItem("System Default Microphone", "")
+        
+        devices = list_input_devices()
+        selected_idx = 0
+        for i, dev in enumerate(devices):
+            display = f"{dev['name']} ({dev['channels']} ch)"
+            if dev.get('default'):
+                display += " [Default]"
+            self.combo_device.addItem(display, dev['name'])
+            if curr_device and curr_device.strip() == dev['name'].strip():
+                selected_idx = i + 1
+
+        self.combo_device.setCurrentIndex(selected_idx)
+
+    def _check_for_updates(self):
+        """Initiate manual update check from Settings card."""
+        self.btn_check_updates.setEnabled(False)
+        self.lbl_update_status.setText("Checking GitHub...")
+        self.lbl_update_status.setStyleSheet("font-size: 12px; color: #8a8f98;")
+
+        self._window_updater = UpdateManager(APP_VERSION, self)
+        self._window_updater.update_available.connect(self._on_window_update_available)
+        self._window_updater.up_to_date.connect(self._on_window_up_to_date)
+        self._window_updater.check_error.connect(self._on_window_check_error)
+        self._window_updater.check_for_updates()
+
+    def _on_window_update_available(self, tag: str, notes: str, asset: dict):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText(f"Update {tag} available!")
+        self.lbl_update_status.setStyleSheet("color: #10b981; font-weight: 600; font-size: 12px;")
+        self.show_update_banner(tag, notes, self._window_updater)
+
+    def _on_window_up_to_date(self):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText("FreeFlow is up to date.")
+        self.lbl_update_status.setStyleSheet("color: #8a8f98; font-size: 12px;")
+
+    def _on_window_check_error(self, err: str):
+        self.btn_check_updates.setEnabled(True)
+        self.lbl_update_status.setText("Could not reach GitHub.")
+        self.lbl_update_status.setStyleSheet("color: #ef4444; font-size: 12px;")
+
     def _save_settings(self):
         self.config.groq_api_key = self.input_key.text().strip()
         self.config.hotkey_modifier = self.shortcut_recorder.modifier
         self.config.hotkey_key = self.shortcut_recorder.key
         self.config.hotkey_mode = "hold" if self.radio_hold.isChecked() else "toggle"
 
-        old_autostart = self.config.autostart
+        self.config.audio_device = self.combo_device.currentData() or None
         self.config.autostart = self.chk_autostart.isChecked()
         self.config.start_minimized = self.chk_start_minimized.isChecked()
         self.config.close_to_tray = self.chk_close_to_tray.isChecked()
         self.config.show_hud = self.chk_show_hud.isChecked()
+        self.config.check_updates_on_startup = self.chk_updates.isChecked()
+        self.config.auto_update_mode = "auto" if self.radio_update_auto.isChecked() else "ask"
 
-        if old_autostart != self.config.autostart:
-            action = "enable" if self.config.autostart else "disable"
-            subprocess.run(["systemctl", "--user", action, "freeflow.service"], capture_output=True)
-
+        set_autostart(self.config.autostart, self.config.start_minimized)
         self.config.save()
 
         hk_str = self.config.get_display_hotkey()
