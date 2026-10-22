@@ -37,12 +37,13 @@ In **every prompt and user task**, the agent must systematically activate, consu
 ## 2. Release Management & History Tracking Protocol
 
 > [!IMPORTANT]
-> **Mandatory Rule for Future Releases:**
-> In **every new release**, the agent MUST update this skill file (`.agents/skills/freeflow-lead/SKILL.md`) and `CHANGELOG.md` with:
-> 1. New version number and release date.
-> 2. Summary of all newly implemented features.
-> 3. Specific bug fixes and resolved issues.
-> 4. Verification test count and passing status.
+> **Mandatory Rule for Every Release:**
+> In **every new release**, the agent MUST:
+> 1. **Update the GitHub Releases Changelog on GitHub**:
+>    Execute `gh release edit <tag> --repo BheeshamKS/FreeFlow --title "FreeFlow <version> — <Title>" --notes "..."` with the full, formatted summary of all newly added features, bug fixes, and test results. Never leave a release with default or blank changelogs.
+> 2. **Update this Skill File** (`.agents/skills/freeflow-lead/SKILL.md`) with the new version and chronological release summary.
+> 3. **Update [`CHANGELOG.md`](file:///CHANGELOG.md)** adhering to the Keep a Changelog standard.
+> 4. Ensure all automated unit and integration tests pass cleanly before publishing.
 
 ### Cumulative Release Log
 
