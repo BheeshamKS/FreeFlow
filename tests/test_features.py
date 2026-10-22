@@ -26,6 +26,7 @@ class TestVersionAndUpdater(unittest.TestCase):
         self.assertEqual(parse_version(""), (0, 0, 0))
 
     def test_is_newer_version(self):
+        self.assertTrue(is_newer_version("v1.2.1", "1.2.0"))
         self.assertTrue(is_newer_version("v1.2.0", "1.1.0"))
         self.assertTrue(is_newer_version("2.0.0", "1.9.9"))
         self.assertFalse(is_newer_version("v1.1.0", "1.1.0"))
@@ -183,6 +184,189 @@ class TestStartupMinimizeLogic(unittest.TestCase):
         cmd_vis = _get_exec_command(start_minimized=False)
         self.assertIn("--autostart", cmd_vis)
         self.assertNotIn("--minimized", cmd_vis)
+
+
+class TestTroubleshootingAndErrorDiagnostics(unittest.TestCase):
+    """Test error categorization, secret redaction, and GitHub issue generation."""
+
+    def test_sanitize_error_text_redacts_api_key(self):
+        from core.troubleshooting import sanitize_error_text
+        secret_msg = "Error 401: Invalid API Key with key gsk_AbCdEf1234567890XyZ provided."
+        sanitized = sanitize_error_text(secret_msg)
+        self.assertNotIn("gsk_AbCdEf1234567890XyZ", sanitized)
+        self.assertIn("gsk_<REDACTED_API_KEY>", sanitized)
+
+    def test_diagnose_invalid_api_key(self):
+        from core.troubleshooting import diagnose_error
+        err = "AuthenticationError: Error code: 401 - {'error': {'message': 'Invalid API Key', 'code': 'invalid_api_key'}}"
+        diag = diagnose_error(err)
+        self.assertEqual(diag.category, "INVALID_API_KEY")
+        self.assertIn("Invalid or Missing Groq API Key", diag.title)
+        self.assertIn("console.groq.com/keys", diag.steps[2])
+        self.assertIn("https://github.com/BheeshamKS/FreeFlow/issues/new", diag.github_issue_url)
+
+    def test_diagnose_network_firewall(self):
+        from core.troubleshooting import diagnose_error
+        err = "groq.APIConnectionError: Connection error. WinError 10060 - A connection attempt failed because the connected party did not properly respond."
+        diag = diagnose_error(err)
+        self.assertEqual(diag.category, "NETWORK_FIREWALL")
+        self.assertIn("Firewall", diag.title)
+        self.assertTrue(any("Windows Defender" in s for s in diag.steps))
+
+    def test_diagnose_rate_limit(self):
+        from core.troubleshooting import diagnose_error
+        err = "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached'}}"
+        diag = diagnose_error(err)
+        self.assertEqual(diag.category, "RATE_LIMIT")
+        self.assertIn("Rate Limit", diag.title)
+
+    def test_diagnose_audio_empty(self):
+        from core.troubleshooting import diagnose_error
+        err = "ValueError: Recorded audio file is empty."
+        diag = diagnose_error(err)
+        self.assertEqual(diag.category, "AUDIO_EMPTY")
+        self.assertIn("Microphone Silence", diag.title)
+
+    def test_diagnose_model_unavailable(self):
+        from core.troubleshooting import diagnose_error
+        err = "Error code: 404 - {'error': {'message': 'The model whisper-legacy does not exist or has been decommissioned'}}"
+        diag = diagnose_error(err)
+        self.assertEqual(diag.category, "MODEL_ERROR")
+
+    def test_github_issue_url_format(self):
+        from core.troubleshooting import generate_github_issue_url
+        url = generate_github_issue_url("Windows SSL Timeout", "NETWORK_FIREWALL", "Connection refused at api.groq.com:443")
+        self.assertTrue(url.startswith("https://github.com/BheeshamKS/FreeFlow/issues/new?"))
+        self.assertIn("Windows+SSL+Timeout", url)
+        self.assertIn("FreeFlow+Version", url)
+
+
+class TestActiveTextBoxAndSmartClipboard(unittest.TestCase):
+    """Test active input box detection and smart clipboard fallback."""
+
+    def test_inject_or_clipboard_when_no_text_box_active(self):
+        from core.injector import TextInjector
+        injector = TextInjector()
+        # Mock is_text_box_active to return False (no text box active)
+        injector.is_text_box_active = lambda: False
+
+        copied_payload = []
+        injector.copy_to_clipboard = lambda t: (copied_payload.append(t), True)[1]
+
+        success, action = injector.inject_or_clipboard("Test transcription text")
+        self.assertTrue(success)
+        self.assertEqual(action, "copied_to_clipboard")
+        self.assertEqual(copied_payload, ["Test transcription text"])
+
+    def test_inject_or_clipboard_when_text_box_is_active(self):
+        from core.injector import TextInjector
+        injector = TextInjector()
+        # Mock is_text_box_active to return True (text box IS active)
+        injector.is_text_box_active = lambda: True
+
+        injected_calls = []
+        injector.inject = lambda t: (injected_calls.append(t), True)[1]
+
+        success, action = injector.inject_or_clipboard("Dictated into active box")
+        self.assertTrue(success)
+        self.assertEqual(action, "injected")
+        self.assertEqual(injected_calls, ["Dictated into active box"])
+
+    def test_copy_to_clipboard_empty_returns_false(self):
+        from core.injector import TextInjector
+        injector = TextInjector()
+        self.assertFalse(injector.copy_to_clipboard(""))
+
+    def test_linux_active_text_box_desktop_detection(self):
+        from unittest.mock import patch
+        import subprocess
+        from core.injector import TextInjector
+
+        injector = TextInjector()
+
+        # Simulate xdotool returning a window ID, but xprop says it's DESKTOP
+        def mock_subprocess_run(cmd, *args, **kwargs):
+            if cmd[0] == "xdotool":
+                return subprocess.CompletedProcess(cmd, 0, stdout="123456\n", stderr="")
+            elif cmd[0] == "xprop":
+                return subprocess.CompletedProcess(cmd, 0, stdout="_NET_WM_WINDOW_TYPE(ATOM) = _NET_WM_WINDOW_TYPE_DESKTOP\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+
+        with patch("shutil.which", return_value="/usr/bin/mock"), \
+             patch("subprocess.run", side_effect=mock_subprocess_run):
+            self.assertFalse(injector._is_text_box_active_linux())
+
+    def test_linux_active_text_box_app_window_detection(self):
+        from unittest.mock import patch
+        import subprocess
+        from core.injector import TextInjector
+
+        injector = TextInjector()
+
+        # Simulate normal application window (e.g. gedit or browser)
+        def mock_subprocess_run(cmd, *args, **kwargs):
+            if cmd[0] == "xdotool":
+                return subprocess.CompletedProcess(cmd, 0, stdout="987654\n", stderr="")
+            elif cmd[0] == "xprop":
+                return subprocess.CompletedProcess(cmd, 0, stdout="_NET_WM_WINDOW_TYPE_NORMAL\nWM_CLASS = \"gedit\"\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+
+        with patch("shutil.which", return_value="/usr/bin/mock"), \
+             patch("subprocess.run", side_effect=mock_subprocess_run):
+            self.assertTrue(injector._is_text_box_active_linux())
+
+
+class TestHUDEnhancements(unittest.TestCase):
+    """Test HUD error state and solutions signal."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        import sys
+        if QApplication.instance() is None:
+            cls._qapp = QApplication(sys.argv)
+
+    def test_hud_error_state_and_solutions_request(self):
+        from ui.hud import RecordingHUD
+        from PyQt6.QtCore import Qt, QPointF
+        from PyQt6.QtGui import QMouseEvent
+
+        hud = RecordingHUD()
+        hud.set_error("Invalid Groq API Key", error_details="401 Unauthorized Key")
+        self.assertEqual(hud.state, "error")
+        self.assertEqual(hud.status_message, "Invalid Groq API Key")
+        self.assertEqual(hud._last_error_details, "401 Unauthorized Key")
+
+        # Emitted signal check on mouse click
+        received_errors = []
+        hud.solutions_requested.connect(lambda err: received_errors.append(err))
+
+        click_ev = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(20.0, 20.0),
+            QPointF(20.0, 20.0),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier
+        )
+        hud.mousePressEvent(click_ev)
+        self.assertEqual(received_errors, ["401 Unauthorized Key"])
+        hud.hide_hud()
+
+    def test_troubleshooting_dialog_presentation(self):
+        from core.troubleshooting import diagnose_error
+        from ui.troubleshooting_dialog import TroubleshootingDialog
+
+        diag = diagnose_error("AuthenticationError: 401 Invalid API Key")
+        dlg = TroubleshootingDialog(parent=None, diagnostic=diag)
+        self.assertIn("Invalid or Missing Groq API Key", dlg.windowTitle())
+        self.assertEqual(dlg.diagnostic.category, "INVALID_API_KEY")
+
+        # Test copy diagnostic details
+        dlg._copy_diagnostic_details()
+        self.assertFalse(dlg.lbl_test_result.isHidden())
+        self.assertIn("copied to clipboard", dlg.lbl_test_result.text())
+        dlg.close()
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Optional
 
 # Add project root to Python search path
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -48,12 +49,14 @@ from core.hotkey import HotkeyListener
 from core.injector import TextInjector
 from core.recorder import AudioRecorder
 from core.single_instance import SingleInstanceGuard
+from core.troubleshooting import diagnose_error, ErrorDiagnostic
 from core.updater import UpdateManager
 from core.version import APP_VERSION
 from ui.hud import RecordingHUD
 from ui.main_window import MainWindow
 from ui.onboarding import OnboardingWizard
 from ui.tray import SystemTrayController
+from ui.troubleshooting_dialog import TroubleshootingDialog
 
 
 class FreeFlowApplication(QObject):
@@ -161,10 +164,14 @@ class FreeFlowApplication(QObject):
         self.recorder.audio_level.connect(self.main_window.update_audio_level)
         self.recorder.error_occurred.connect(self.on_recorder_error)
 
+        # HUD Capsule Actions
+        self.hud.solutions_requested.connect(self.show_troubleshooting_dialog)
+
         # System Tray Actions
         self.tray.open_hub_requested.connect(self.show_main_window)
         self.tray.open_settings_requested.connect(self.open_settings)
         self.tray.check_updates_requested.connect(self._manual_check_updates)
+        self.tray.troubleshoot_requested.connect(self.show_troubleshooting_dialog)
         self.tray.toggle_recording_requested.connect(self.hotkey_listener.trigger_toggle_manual)
         self.tray.quit_requested.connect(self.quit)
 
@@ -251,8 +258,8 @@ class FreeFlowApplication(QObject):
         self.main_window.set_app_state(status)
 
     def _on_transcription_completed(self, finalized_text: str, duration: float):
-        """Inject text into active window and save to dictation history."""
-        logger.info(f"Transcription completed ({len(finalized_text)} chars). Injecting...")
+        """Inject text into active window or copy to clipboard if no text box is focused."""
+        logger.info(f"Transcription completed ({len(finalized_text)} chars). Dispatching...")
 
         if not finalized_text.strip():
             self.hud.set_state("hidden")
@@ -262,25 +269,52 @@ class FreeFlowApplication(QObject):
 
         # Save to history
         self.history.add_entry(finalized_text, duration)
-
-        # Visual feedback
-        if self.config.show_hud:
-            self.hud.set_state("done")
         self.tray.set_state("done")
         self.main_window.set_app_state("ready")
 
-        # Inject into user's cursor position
-        success = self.injector.inject(finalized_text)
-        if not success:
-            logger.warning("Active window injection failed. Text saved to clipboard buffer.")
-            self.tray.notify_error("Could not inject text directly. Copied to clipboard.")
+        # Smart injection: if active text box is focused -> inject and restore clipboard.
+        # If no active text box is focused -> copy directly to clipboard and notify.
+        success, action = self.injector.inject_or_clipboard(finalized_text)
+
+        if action == "copied_to_clipboard":
+            logger.info("Transcribed text copied to clipboard (no active text box).")
+            if self.config.show_hud:
+                self.hud.set_state("done", message="Copied to clipboard (no text box active)")
+            self.tray.notify_info("Transcribed text copied to clipboard (no active text box).")
+        elif action == "injected":
+            logger.info("Transcribed text injected directly into active text box.")
+            if self.config.show_hud:
+                self.hud.set_state("done", message="Injected!")
+        elif action == "fallback_copied":
+            logger.warning("Keystroke injection into active text box failed; fallback to clipboard.")
+            if self.config.show_hud:
+                self.hud.set_state("done", message="Copied to clipboard")
+            self.tray.notify_warning("Could not inject text directly. Copied to clipboard.")
+        else:
+            if self.config.show_hud:
+                self.hud.set_state("done", message="Done")
 
     def _on_groq_error(self, error_message: str):
         logger.error(f"Groq API Error: {error_message}")
+        self._last_error = error_message
+        diagnostic = diagnose_error(error_message)
+
         if self.config.show_hud:
-            self.hud.set_state("error", message="API Error")
-        self.tray.notify_error(f"Transcription failed: {error_message}")
+            self.hud.set_error(message=diagnostic.title, error_details=error_message)
+        self.tray.notify_error(f"{diagnostic.title}. Click HUD to view solutions.")
         self.main_window.set_app_state("ready")
+
+    def show_troubleshooting_dialog(self, error_details: Optional[str] = None):
+        """Display the interactive troubleshooting and solutions dialog."""
+        err = error_details or getattr(self, "_last_error", "") or "Normal Diagnostics Check"
+        diagnostic = diagnose_error(err)
+        dialog = TroubleshootingDialog(self.main_window, diagnostic=diagnostic, config=self.config)
+        dialog.open_settings_requested.connect(self._on_solutions_open_settings)
+        dialog.exec()
+
+    def _on_solutions_open_settings(self, tab_index: int = 2):
+        self.main_window._switch_tab(tab_index)
+        self.show_main_window()
 
     def on_hotkey_error(self, error_message: str):
         logger.error(f"Hotkey Error: {error_message}")

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-10-23
+
+### Added
+- **Interactive Troubleshooting & Solutions Guide**:
+  - Automated diagnostic engine (`core/troubleshooting.py`) categorizing API key errors, Windows Defender/Firewall connection blocks, rate limits, and microphone silence.
+  - Sleek, interactive `[View Solutions →]` pill button directly on the floating HUD capsule overlay when any error occurs.
+  - Dedicated **Troubleshooting & Solutions Dialog** (`ui/troubleshooting_dialog.py`) with step-by-step guides, live connection tester, and one-click **Report Issue on GitHub** with pre-filled, sanitized diagnostic details (API keys automatically redacted).
+  - Quick access added to System Tray menu and Main Window Settings.
+- **Smart Active Text Box Detection & Clipboard Fallback**:
+  - Cross-platform active input field detection (`core/injector.py`) across Windows (`GetGUIThreadInfo`), macOS (`AXFocusedUIElement`), and Linux (desktop/dock filtering).
+  - **If active text box is focused**: Injects text directly into the focused field and restores the user's prior clipboard buffer (transcribed text is NOT left on the clipboard).
+  - **If no text box is focused**: Avoids blind keystroke emission, copies transcribed text directly to the system clipboard, and displays `"Copied to clipboard (no text box active)"` on the HUD capsule.
+
 ## [1.2.0] - 2026-10-23
 
 ### Added
