@@ -39,8 +39,10 @@ In **every prompt and user task**, the agent must systematically activate, consu
 > [!IMPORTANT]
 > **Mandatory Rule for Every Release:**
 > In **every new release**, the agent MUST:
-> 1. **Update the GitHub Releases Changelog on GitHub**:
->    Execute `gh release edit <tag> --repo BheeshamKS/FreeFlow --title "FreeFlow <version> — <Title>" --notes "..."` with the full, formatted summary of all newly added features, bug fixes, and test results. Never leave a release with default or blank changelogs.
+> 1. **Clean Release Name & GitHub Changelog**:
+>    The release name on GitHub must ALWAYS be clean and formatted strictly as:
+>    `FreeFlow Linux <version>` (e.g. `FreeFlow Linux v1.0.0`, `FreeFlow Linux v1.2.1`).
+>    Execute `gh release edit <tag> --repo BheeshamKS/FreeFlow --title "FreeFlow Linux <version>" --notes "..."` with the full, formatted summary of all newly added features, bug fixes, and test results. Never leave a release with default or blank changelogs.
 > 2. **Update this Skill File** (`.agents/skills/freeflow-lead/SKILL.md`) with the new version and chronological release summary.
 > 3. **Update [`CHANGELOG.md`](file:///CHANGELOG.md)** adhering to the Keep a Changelog standard.
 > 4. Ensure all automated unit and integration tests pass cleanly before publishing.

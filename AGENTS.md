@@ -23,7 +23,7 @@ This repository is governed by the primary orchestrator skill defined at [`.agen
 
 2. **Release History Protocol:**
    In **every release**, you MUST update:
-   - The **GitHub Releases changelog on GitHub** via `gh release edit <tag> --repo BheeshamKS/FreeFlow --notes "..."` with full feature summaries, bug fixes, and verification details.
+   - The **GitHub Releases changelog on GitHub** via `gh release edit <tag> --repo BheeshamKS/FreeFlow --title "FreeFlow Linux <version>" --notes "..."` with full feature summaries, bug fixes, and verification details. The release name on GitHub must ALWAYS be clean like `FreeFlow Linux v1.0.0`.
    - The cumulative release log in [`.agents/skills/freeflow-lead/SKILL.md`](file:///.agents/skills/freeflow-lead/SKILL.md).
    - [`CHANGELOG.md`](file:///CHANGELOG.md).
 
