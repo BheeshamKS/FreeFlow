@@ -2,12 +2,13 @@
 
 <div align="center">
 
-**Fast, private voice dictation for Linux, Windows, and macOS**  
+**Fast, private voice dictation for Linux, Windows, macOS, and Android**  
 *Press a shortcut, speak naturally, and text appears instantly at your cursor.*
 
 [![Linux](https://img.shields.io/badge/Platform-Linux-10b981?style=flat-square&logo=linux&logoColor=white)](https://kernel.org)
 [![Windows](https://img.shields.io/badge/Platform-Windows-0078d4?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
 [![macOS](https://img.shields.io/badge/Platform-macOS-000000?style=flat-square&logo=apple&logoColor=white)](https://apple.com)
+[![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/BheeshamKS/FreeFlow-Pocket)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![Groq LPU](https://img.shields.io/badge/Groq%20LPU-Whisper%20Large%20v3-f59e0b?style=flat-square)](https://groq.com)
 [![License](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](LICENSE)
@@ -90,6 +91,20 @@ git clone https://github.com/BheeshamKS/FreeFlow.git; cd FreeFlow; .\setup.ps1
 - **History**: Search previous dictations, copy past text, or check your spoken word counts.
 - **Custom Shortcut**: Change your hotkey under **Settings** by pressing the shortcut recorder button and typing your desired key combination.
 - **Setup Wizard**: Run `freeflow --setup` at any time to re-run the onboarding guide.
+
+---
+
+## FreeFlow for Android (FreeFlow Pocket)
+
+FreeFlow is also available on Android as **[FreeFlow Pocket](https://github.com/BheeshamKS/FreeFlow-Pocket)**:
+
+- **Floating Voice Capsule**: Wispr Flow inspired floating orb capsule available anywhere across your apps.
+- **Custom Keyboard IME**: Samsung Keys Cafe styled on-screen keyboard with instant dictation key.
+- **Quick Settings Tile**: Start and stop listening right from the Android notification bar.
+- **Sub-300ms Whisper Large v3**: Same ultra-fast Groq speech inference on your mobile device.
+
+- **GitHub Repository**: [https://github.com/BheeshamKS/FreeFlow-Pocket](https://github.com/BheeshamKS/FreeFlow-Pocket)
+- **Releases**: [FreeFlow Pocket Latest Release](https://github.com/BheeshamKS/FreeFlow-Pocket/releases/latest)
 
 ---
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1008 1008">
+  <defs>
+    <style>
+      .cls-1{fill:url(#linear-gradient-1);stroke:url(#linear-gradient-2);stroke-miterlimit:10}
+    </style>
+    <linearGradient id="linear-gradient-1" x1="121.964" y1="169.083" x2="884.421" y2="838.917" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#32ffe4"/>
+      <stop offset="1" stop-color="#0072da"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="707.898" y1="837.492" x2="1427.284" y2="837.492" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#000000"/>
+    </linearGradient>
+  </defs>
+  <title>Artboard 1</title>
+  <g id="Layer_1" data-name="Layer 1">
+    <path d="M144 237.693 C144 185.948 185.948 144 237.693 144 C289.438 144 331.386 185.948 331.386 237.693 L331.386 554.307 C331.386 606.052 289.438 648 237.693 648 C185.948 648 144 606.052 144 554.307 Z M410.307 345.693 C410.307 293.948 452.255 252 504 252 C555.745 252 597.693 293.948 597.693 345.693 L597.693 662.307 C597.693 714.052 555.745 756 504 756 C452.255 756 410.307 714.052 410.307 662.307 Z M675 453.693 C675 401.948 716.948 360 768.693 360 C820.438 360 862.386 401.948 862.386 453.693 L862.386 770.307 C862.386 822.052 820.438 864 768.693 864 C716.948 864 675 822.052 675 770.307 Z" class="cls-1"/>
+  </g>
+</svg>

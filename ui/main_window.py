@@ -11,13 +11,14 @@ import os
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import Optional
 
 try:
     from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPointF, QRectF
     from PyQt6.QtGui import (
         QFont, QColor, QPainter, QBrush, QPen,
-        QLinearGradient, QRadialGradient, QPainterPath
+        QLinearGradient, QRadialGradient, QPainterPath, QIcon
     )
     from PyQt6.QtWidgets import (
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -39,6 +40,12 @@ from core.recorder import list_input_devices
 from core.autostart import set_autostart
 from core.updater import UpdateManager
 from core.version import APP_VERSION
+from core.theme import (
+    get_application_stylesheet, PRIMARY_BLUE, DARK_SURFACE, DARK_CARD,
+    DARK_CARD_HOVER, DARK_CARD_BORDER,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY,
+    ACCENT_GREEN, ACCENT_VIOLET, ACCENT_RED
+)
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 
@@ -103,72 +110,73 @@ class InteractiveVoiceOrb(QWidget):
         pulse = (math.sin(self._phase * 1.8) + 1.0) / 2.0
 
         if self.state == "recording":
-            # Active Listening: Expansive glowing aura with harmonic ripple rings
+            # Active Listening: Expansive glowing emerald aura with harmonic ripple rings
             aura_r = 68.0 + (pulse * 9.0) + (self._audio_level * 18.0)
             core_r = 44.0 + (pulse * 3.0) + (self._audio_level * 10.0)
 
             diffuse = QRadialGradient(center, aura_r)
-            diffuse.setColorAt(0.0, QColor(16, 185, 129, int(100 + 70 * pulse)))
-            diffuse.setColorAt(0.5, QColor(6, 182, 212, int(40 * pulse)))
+            diffuse.setColorAt(0.0, QColor(0, 230, 118, int(110 + 75 * pulse)))  # AccentGreen (#00E676)
+            diffuse.setColorAt(0.5, QColor(90, 180, 255, int(45 * pulse)))       # PrimaryBlue (#5AB4FF)
             diffuse.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(diffuse))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(center, aura_r, aura_r)
 
             core = QRadialGradient(center, core_r)
-            core.setColorAt(0.0, QColor(16, 185, 129, 255))
-            core.setColorAt(0.7, QColor(5, 150, 105, 235))
-            core.setColorAt(1.0, QColor(4, 120, 87, 210))
+            core.setColorAt(0.0, QColor(0, 230, 118, 255))
+            core.setColorAt(0.7, QColor(0, 190, 95, 240))
+            core.setColorAt(1.0, QColor(0, 140, 70, 220))
             painter.setBrush(QBrush(core))
-            painter.setPen(QPen(QColor(255, 255, 255, int(140 + 80 * pulse)), 1.5))
+            painter.setPen(QPen(QColor(255, 255, 255, int(150 + 80 * pulse)), 1.5))
             painter.drawEllipse(center, core_r, core_r)
 
             # Draw microphone icon
             self._draw_microphone_glyph(painter, center, QColor(255, 255, 255))
 
         elif self.state == "transcribing":
-            # Amber processing state
+            # Vivid Violet AI processing state (AccentViolet #D500F9)
             aura_r = 62.0 + (pulse * 6.0)
             core_r = 42.0
 
             diffuse = QRadialGradient(center, aura_r)
-            diffuse.setColorAt(0.0, QColor(245, 158, 11, int(90 + 50 * pulse)))
+            diffuse.setColorAt(0.0, QColor(213, 0, 249, int(95 + 60 * pulse)))
             diffuse.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(diffuse))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(center, aura_r, aura_r)
 
             core = QRadialGradient(center, core_r)
-            core.setColorAt(0.0, QColor(245, 158, 11, 240))
-            core.setColorAt(1.0, QColor(180, 83, 9, 220))
+            core.setColorAt(0.0, QColor(213, 0, 249, 245))
+            core.setColorAt(1.0, QColor(150, 0, 180, 225))
             painter.setBrush(QBrush(core))
-            painter.setPen(QPen(QColor(255, 255, 255, 160), 1.2))
+            painter.setPen(QPen(QColor(255, 255, 255, 170), 1.2))
             painter.drawEllipse(center, core_r, core_r)
 
             self._draw_microphone_glyph(painter, center, QColor(255, 255, 255))
 
         else:
-            # Idle / Ready state: Inky deep pill orb with subtle breathing border
+            # Idle / Ready state: Electric Azure (#5AB4FF) ambient aura over pitch-black obsidian core
             aura_r = 58.0 + (pulse * 4.0)
             core_r = 42.0
 
             diffuse = QRadialGradient(center, aura_r)
-            diffuse.setColorAt(0.0, QColor(16, 185, 129, int(20 + 20 * pulse)))
+            diffuse.setColorAt(0.0, QColor(90, 180, 255, int(30 + 30 * pulse)))
+            diffuse.setColorAt(0.6, QColor(50, 255, 228, int(15 * pulse)))
             diffuse.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(diffuse))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(center, aura_r, aura_r)
 
             core = QRadialGradient(center, core_r)
-            core.setColorAt(0.0, QColor(24, 27, 34))
-            core.setColorAt(0.8, QColor(16, 18, 23))
-            core.setColorAt(1.0, QColor(10, 11, 14))
+            core.setColorAt(0.0, QColor(24, 24, 28))   # DarkCard (#18181C)
+            core.setColorAt(0.8, QColor(14, 14, 18))   # DarkSurface (#0E0E12)
+            core.setColorAt(1.0, QColor(0, 0, 0))      # DarkBackground (#000000)
             painter.setBrush(QBrush(core))
-            border_alpha = int(45 + 30 * pulse)
-            painter.setPen(QPen(QColor(16, 185, 129, border_alpha), 1.4))
+            border_alpha = int(55 + 40 * pulse)
+            painter.setPen(QPen(QColor(90, 180, 255, border_alpha), 1.5))
             painter.drawEllipse(center, core_r, core_r)
 
-            self._draw_microphone_glyph(painter, center, QColor(16, 185, 129, 230))
+            self._draw_microphone_glyph(painter, center, QColor(90, 180, 255, 240))
 
     def _draw_microphone_glyph(self, painter: QPainter, center: QPointF, color: QColor):
         painter.setPen(QPen(color, 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
@@ -218,20 +226,20 @@ class SidebarNavItem(QPushButton):
 
         # Background
         if self.is_active:
-            painter.setBrush(QColor("#181b22"))
+            painter.setBrush(QColor("#18181C"))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(self.rect(), 6, 6)
+            painter.drawRoundedRect(self.rect(), 8, 8)
 
-            # Left vertical emerald accent bar (Linear / Raycast signature)
-            painter.setBrush(QColor("#10b981"))
+            # Left vertical Electric Azure accent bar (FreeFlow Signature)
+            painter.setBrush(QColor("#5AB4FF"))
             painter.drawRoundedRect(0, 8, 3, self.height() - 16, 1.5, 1.5)
         elif self.underMouse():
-            painter.setBrush(QColor("#12141a"))
+            painter.setBrush(QColor("#222228"))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(self.rect(), 6, 6)
+            painter.drawRoundedRect(self.rect(), 8, 8)
 
         # Draw Icon (Clean vector glyph)
-        icon_color = QColor("#10b981" if self.is_active else ("#f4f4f6" if self.underMouse() else "#71717a"))
+        icon_color = QColor("#5AB4FF" if self.is_active else ("#FFFFFF" if self.underMouse() else "#9E9EA8"))
         pen = QPen(icon_color, 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -264,7 +272,7 @@ class SidebarNavItem(QPushButton):
             painter.setBrush(Qt.BrushStyle.NoBrush)
 
         # Draw Label Text
-        text_color = QColor("#ffffff" if self.is_active else ("#f4f4f6" if self.underMouse() else "#9496a1"))
+        text_color = QColor("#FFFFFF" if self.is_active else ("#FFFFFF" if self.underMouse() else "#9E9EA8"))
         painter.setPen(text_color)
         font = QFont("Inter", 10)
         font.setWeight(QFont.Weight.DemiBold if self.is_active else QFont.Weight.Medium)
@@ -275,10 +283,10 @@ class SidebarNavItem(QPushButton):
         if self.badge_text:
             painter.setFont(QFont("Inter", 9, QFont.Weight.Bold))
             badge_rect = QRectF(self.width() - 38, cy - 9, 26, 18)
-            painter.setBrush(QColor("#181b24" if not self.is_active else "#222736"))
+            painter.setBrush(QColor("#26262E" if not self.is_active else "#1c2c3d"))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(badge_rect, 9, 9)
-            painter.setPen(QColor("#8a8f98" if not self.is_active else "#34d399"))
+            painter.setPen(QColor("#9E9EA8" if not self.is_active else "#5AB4FF"))
             painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, self.badge_text)
 
 
@@ -301,12 +309,17 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.config = config
         self.history = history
+        self.assets_dir = Path(__file__).resolve().parent.parent / "assets"
 
         self.setWindowTitle("FreeFlow")
         self.resize(980, 650)
         self.setMinimumSize(860, 580)
 
-        # Apply inky Raycast-style stylesheet
+        icon_path = self.assets_dir / "icon.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+        # Apply obsidian FreeFlow Pocket design tokens
         self._apply_theme()
 
         # Layout setup
@@ -354,103 +367,8 @@ class MainWindow(QMainWindow):
         self._refresh_dashboard_stats()
 
     def _apply_theme(self):
-        """Pure-near-black Linear/Raycast design tokens."""
-        self.setStyleSheet("""
-            QMainWindow, QWidget#AppCanvas {
-                background-color: #08090b;
-                color: #f4f4f6;
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            }
-            QWidget#Sidebar {
-                background-color: #0c0d10;
-                border-right: 1px solid #181a20;
-            }
-            QWidget#ContentCanvas {
-                background-color: #08090b;
-            }
-            /* Elegant Linear Card Panels */
-            QFrame#SurfaceCard, QFrame[surface="true"] {
-                background-color: #0f1115;
-                border: 1px solid #1c1f26;
-                border-radius: 10px;
-            }
-            /* Buttons */
-            QPushButton#PrimaryAction, QPushButton[variant="primary"] {
-                background-color: #10b981;
-                color: #022c22;
-                border: 1px solid #10b981;
-                border-radius: 8px;
-                padding: 9px 18px;
-                font-size: 13px;
-                font-weight: 600;
-            }
-            QPushButton#PrimaryAction:hover, QPushButton[variant="primary"]:hover {
-                background-color: #059669;
-                border-color: #059669;
-                color: #ffffff;
-            }
-            QPushButton#PrimaryAction:pressed, QPushButton[variant="primary"]:pressed {
-                background-color: #047857;
-                border-color: #047857;
-            }
-            QPushButton#GhostAction, QPushButton[variant="ghost"] {
-                background-color: #14171f;
-                color: #d0d6e0;
-                border: 1px solid #232836;
-                border-radius: 8px;
-                padding: 7px 14px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-            QPushButton#GhostAction:hover, QPushButton[variant="ghost"]:hover {
-                background-color: #1c212c;
-                border-color: #3b4559;
-                color: #ffffff;
-            }
-            /* Form inputs */
-            QLineEdit, QTextEdit, QComboBox {
-                background-color: #0f1115;
-                color: #f4f4f6;
-                border: 1px solid #1f232c;
-                border-radius: 6px;
-                padding: 8px 12px;
-                font-size: 13px;
-                selection-background-color: #10b981;
-            }
-            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border: 1px solid #10b981;
-                background-color: #12141a;
-            }
-            QCheckBox, QRadioButton {
-                color: #d0d6e0;
-                font-size: 13px;
-                spacing: 8px;
-            }
-            QCheckBox::indicator, QRadioButton::indicator {
-                width: 16px;
-                height: 16px;
-                background-color: #0f1115;
-                border: 1px solid #22252e;
-                border-radius: 4px;
-            }
-            QRadioButton::indicator {
-                border-radius: 8px;
-            }
-            QCheckBox::indicator:checked, QRadioButton::indicator:checked {
-                background-color: #10b981;
-                border-color: #10b981;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background: #08090b;
-                width: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background: #1c1f26;
-                border-radius: 3px;
-                min-height: 24px;
-            }
-        """)
+        """Pure obsidian pitch-black FreeFlow Pocket design tokens."""
+        self.setStyleSheet(get_application_stylesheet())
 
     # --------------------------------------------------------------------------
     # 1. Sidebar Navigation
@@ -463,19 +381,23 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(14, 22, 14, 20)
         layout.setSpacing(4)
 
-        # Brand mark (Linear-style minimal logo)
+        # Brand mark (FreeFlow Signature Logo)
         brand = QHBoxLayout()
-        pulse_dot = QLabel("●")
-        pulse_dot.setStyleSheet("color: #10b981; font-size: 14px; margin-right: 4px;")
-        brand.addWidget(pulse_dot)
+        logo_lbl = QLabel()
+        logo_path = self.assets_dir / "icon.png"
+        if logo_path.exists():
+            pix = QIcon(str(logo_path)).pixmap(24, 24)
+            logo_lbl.setPixmap(pix)
+            logo_lbl.setStyleSheet("margin-right: 6px;")
+        brand.addWidget(logo_lbl)
 
         title = QLabel("FreeFlow")
-        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #f4f4f6; letter-spacing: -0.3px;")
+        title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {TEXT_PRIMARY}; letter-spacing: -0.3px;")
         brand.addWidget(title)
 
         plat_tag = "macOS" if is_macos() else ("Windows" if is_windows() else "Linux")
         tag = QLabel(plat_tag)
-        tag.setStyleSheet("font-size: 10px; font-weight: 600; color: #62666d; background: #14161c; border-radius: 4px; padding: 2px 5px; margin-left: 4px;")
+        tag.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {TEXT_TERTIARY}; background: {DARK_CARD}; border: 1px solid {DARK_CARD_BORDER}; border-radius: 4px; padding: 2px 6px; margin-left: 6px;")
         brand.addWidget(tag)
         brand.addStretch()
         layout.addLayout(brand)
@@ -516,7 +438,7 @@ class MainWindow(QMainWindow):
         status_box.addWidget(self.footer_keycaps_container)
 
         self.lbl_sidebar_status = QLabel("● Ready")
-        self.lbl_sidebar_status.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 500;")
+        self.lbl_sidebar_status.setStyleSheet(f"color: {PRIMARY_BLUE}; font-size: 11px; font-weight: 500;")
         status_box.addWidget(self.lbl_sidebar_status)
 
         layout.addLayout(status_box)
@@ -531,11 +453,11 @@ class MainWindow(QMainWindow):
         parts = self.config.get_display_hotkey().split(" + ")
         for p in parts:
             chip = QLabel(p)
-            chip.setStyleSheet("""
-                background-color: #14171f;
-                color: #2dd4bf;
-                border: 1px solid #232836;
-                border-bottom: 2px solid #2f3547;
+            chip.setStyleSheet(f"""
+                background-color: {DARK_CARD};
+                color: {PRIMARY_BLUE};
+                border: 1px solid {DARK_CARD_BORDER};
+                border-bottom: 2px solid #3B3B48;
                 border-radius: 4px;
                 padding: 2px 7px;
                 font-size: 11px;
@@ -563,9 +485,9 @@ class MainWindow(QMainWindow):
         # Header with subtle negative letter spacing
         header = QVBoxLayout()
         h1 = QLabel("Voice Dictation")
-        h1.setStyleSheet("font-size: 24px; font-weight: 600; color: #f4f4f6; letter-spacing: -0.5px;")
+        h1.setStyleSheet(f"font-size: 24px; font-weight: 600; color: {TEXT_PRIMARY}; letter-spacing: -0.5px;")
         sub = QLabel("Hold or toggle your shortcut anywhere to transcribe directly into your active window.")
-        sub.setStyleSheet("font-size: 13px; color: #8a8f98; margin-top: 2px;")
+        sub.setStyleSheet(f"font-size: 13px; color: {TEXT_SECONDARY}; margin-top: 2px;")
         header.addWidget(h1)
         header.addWidget(sub)
         layout.addLayout(header)
@@ -585,29 +507,29 @@ class MainWindow(QMainWindow):
 
         # Status text below orb
         self.lbl_orb_status = QLabel("Ready to Dictate")
-        self.lbl_orb_status.setStyleSheet("font-size: 15px; font-weight: 500; color: #f4f4f6; letter-spacing: -0.2px;")
+        self.lbl_orb_status.setStyleSheet(f"font-size: 15px; font-weight: 500; color: {TEXT_PRIMARY}; letter-spacing: -0.2px;")
         hero_layout.addWidget(self.lbl_orb_status, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Apple-style Tactile Keyboard Shortcut Badge
         hk_str = self.config.get_display_hotkey()
         self.btn_hotkey_badge = QPushButton(f"Shortcut: {hk_str}")
         self.btn_hotkey_badge.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_hotkey_badge.setStyleSheet("""
-            QPushButton {
-                background-color: #14171f;
-                color: #2dd4bf;
-                border: 1px solid #232836;
-                border-bottom: 2px solid #2f3547;
+        self.btn_hotkey_badge.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {DARK_CARD};
+                color: {PRIMARY_BLUE};
+                border: 1px solid {DARK_CARD_BORDER};
+                border-bottom: 2px solid #3B3B48;
                 border-radius: 6px;
                 padding: 6px 14px;
                 font-size: 12px;
                 font-weight: 600;
                 font-family: 'JetBrains Mono', 'Ubuntu Mono', monospace;
-            }
-            QPushButton:hover {
-                border-color: #2dd4bf;
-                background-color: #181d28;
-            }
+            }}
+            QPushButton:hover {{
+                border-color: {PRIMARY_BLUE};
+                background-color: {DARK_CARD_HOVER};
+            }}
         """)
         self.btn_hotkey_badge.clicked.connect(self._open_shortcut_settings)
         hero_layout.addWidget(self.btn_hotkey_badge, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -616,20 +538,20 @@ class MainWindow(QMainWindow):
         self.btn_retry_recovery = QPushButton("🔁 Retry Last Audio Recording")
         self.btn_retry_recovery.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_retry_recovery.setVisible(False)
-        self.btn_retry_recovery.setStyleSheet("""
-            QPushButton {
-                background-color: #064e3b;
-                color: #a7f3d0;
-                border: 1px solid #10b981;
+        self.btn_retry_recovery.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #062B1F;
+                color: #69F0AE;
+                border: 1px solid {ACCENT_GREEN};
                 border-radius: 6px;
                 padding: 7px 16px;
                 font-size: 12px;
                 font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #047857;
-                color: #ffffff;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: #0B3D2C;
+                color: #FFFFFF;
+            }}
         """)
         self.btn_retry_recovery.clicked.connect(self._on_retry_recovery_clicked)
         hero_layout.addWidget(self.btn_retry_recovery, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -1179,18 +1101,18 @@ class MainWindow(QMainWindow):
         """Create sleek banner surfaced when a newer version of FreeFlow is available."""
         banner = QFrame()
         banner.setObjectName("UpdateBanner")
-        banner.setStyleSheet("""
-            QFrame#UpdateBanner {
-                background-color: #064e3b;
-                border-bottom: 1px solid #10b981;
-            }
+        banner.setStyleSheet(f"""
+            QFrame#UpdateBanner {{
+                background-color: {DARK_SURFACE};
+                border-bottom: 1px solid {PRIMARY_BLUE};
+            }}
         """)
         b_layout = QHBoxLayout(banner)
         b_layout.setContentsMargins(20, 8, 20, 8)
         b_layout.setSpacing(14)
 
         self.lbl_banner_text = QLabel("● FreeFlow update available")
-        self.lbl_banner_text.setStyleSheet("color: #ecfdf5; font-size: 13px; font-weight: 500;")
+        self.lbl_banner_text.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 13px; font-weight: 500;")
         b_layout.addWidget(self.lbl_banner_text, 1)
 
         self.btn_banner_action = QPushButton("Update & Restart")
@@ -1203,7 +1125,7 @@ class MainWindow(QMainWindow):
         btn_dismiss = QPushButton("✕")
         btn_dismiss.setFixedSize(24, 24)
         btn_dismiss.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_dismiss.setStyleSheet("background: transparent; border: none; color: #a7f3d0; font-size: 14px; font-weight: bold;")
+        btn_dismiss.setStyleSheet(f"background: transparent; border: none; color: {TEXT_SECONDARY}; font-size: 14px; font-weight: bold;")
         btn_dismiss.clicked.connect(banner.hide)
         b_layout.addWidget(btn_dismiss)
 
@@ -1324,15 +1246,15 @@ class MainWindow(QMainWindow):
         if state == "recording":
             self.lbl_orb_status.setText("Listening...")
             self.lbl_sidebar_status.setText("● Recording...")
-            self.lbl_sidebar_status.setStyleSheet("color: #ef4444; font-size: 11px; font-weight: 600;")
+            self.lbl_sidebar_status.setStyleSheet(f"color: {ACCENT_GREEN}; font-size: 11px; font-weight: 600;")
         elif state == "transcribing":
             self.lbl_orb_status.setText("Transcribing with Whisper...")
             self.lbl_sidebar_status.setText("● Transcribing...")
-            self.lbl_sidebar_status.setStyleSheet("color: #f59e0b; font-size: 11px; font-weight: 600;")
+            self.lbl_sidebar_status.setStyleSheet(f"color: {ACCENT_VIOLET}; font-size: 11px; font-weight: 600;")
         else:
             self.lbl_orb_status.setText("Ready to Dictate")
             self.lbl_sidebar_status.setText("● Ready")
-            self.lbl_sidebar_status.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 500;")
+            self.lbl_sidebar_status.setStyleSheet(f"color: {PRIMARY_BLUE}; font-size: 11px; font-weight: 500;")
 
     def update_audio_level(self, level: float):
         self.orb_widget.set_audio_level(level)

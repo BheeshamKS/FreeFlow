@@ -229,18 +229,18 @@ class RecordingHUD(QWidget):
 
         # 1. Dark Frosted Obsidian Capsule Container
         bg_gradient = QLinearGradient(0, 0, 0, self.height())
-        bg_gradient.setColorAt(0.0, QColor(18, 24, 38, 245))
-        bg_gradient.setColorAt(1.0, QColor(9, 13, 22, 252))
+        bg_gradient.setColorAt(0.0, QColor(14, 14, 18, 250))  # DarkSurface (#0E0E12)
+        bg_gradient.setColorAt(1.0, QColor(0, 0, 0, 252))    # DarkBackground (#000000)
 
         # Ambient border glow depending on state
         if self.state == "recording":
-            border_color = QColor(0, 225, 175, 140)   # Glowing Mint
+            border_color = QColor(0, 230, 118, 180)   # AccentGreen (#00E676)
         elif self.state in ("transcribing", "formatting"):
-            border_color = QColor(168, 85, 247, 150)  # Violet
+            border_color = QColor(213, 0, 249, 180)  # AccentViolet (#D500F9)
         elif self.state == "done":
-            border_color = QColor(16, 185, 129, 180)  # Emerald
+            border_color = QColor(90, 180, 255, 200)  # PrimaryBlue (#5AB4FF)
         else:
-            border_color = QColor(239, 68, 68, 170)   # Red
+            border_color = QColor(255, 82, 82, 190)   # AccentRed (#FF5252)
 
         painter.setBrush(QBrush(bg_gradient))
         painter.setPen(QPen(border_color, 1.5))
@@ -256,8 +256,8 @@ class RecordingHUD(QWidget):
 
             # Outer diffuse aura
             aura = QRadialGradient(orb_center, glow_radius)
-            aura.setColorAt(0.0, QColor(0, 225, 175, int(90 + 70 * pulse)))
-            aura.setColorAt(0.6, QColor(6, 182, 212, int(35 * pulse)))
+            aura.setColorAt(0.0, QColor(0, 230, 118, int(100 + 70 * pulse)))
+            aura.setColorAt(0.6, QColor(90, 180, 255, int(40 * pulse)))
             aura.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(aura))
             painter.setPen(Qt.PenStyle.NoPen)
@@ -265,30 +265,30 @@ class RecordingHUD(QWidget):
 
             # Core
             core = QRadialGradient(orb_center, orb_radius)
-            core.setColorAt(0.0, QColor(240, 253, 250))
-            core.setColorAt(0.5, QColor(45, 212, 191))
-            core.setColorAt(1.0, QColor(13, 148, 136))
+            core.setColorAt(0.0, QColor(255, 255, 255))
+            core.setColorAt(0.5, QColor(0, 230, 118))
+            core.setColorAt(1.0, QColor(0, 170, 85))
             painter.setBrush(QBrush(core))
             painter.drawEllipse(orb_center, orb_radius, orb_radius)
 
         elif self.state in ("transcribing", "formatting"):
             aura = QRadialGradient(orb_center, 18.0)
-            aura.setColorAt(0.0, QColor(168, 85, 247, 130))
+            aura.setColorAt(0.0, QColor(213, 0, 249, 130))
             aura.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(aura))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(orb_center, 18.0, 18.0)
 
-            painter.setBrush(QBrush(QColor(192, 132, 252)))
+            painter.setBrush(QBrush(QColor(213, 0, 249)))
             painter.drawEllipse(orb_center, 6.5, 6.5)
 
         elif self.state == "done":
-            painter.setBrush(QBrush(QColor(16, 185, 129)))
+            painter.setBrush(QBrush(QColor(90, 180, 255)))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(orb_center, 6.0, 6.0)
 
         else:
-            painter.setBrush(QBrush(QColor(239, 68, 68)))
+            painter.setBrush(QBrush(QColor(255, 82, 82)))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(orb_center, 6.0, 6.0)
 
@@ -332,18 +332,18 @@ class RecordingHUD(QWidget):
 
                 bar_grad = QLinearGradient(x, y, x, y + clamped_h)
                 if self.state == "recording":
-                    bar_grad.setColorAt(0.0, QColor(45, 212, 191, 250))
-                    bar_grad.setColorAt(1.0, QColor(6, 182, 212, 220))
+                    bar_grad.setColorAt(0.0, QColor(50, 255, 228, 255))  # Electric Cyan (#32FFE4)
+                    bar_grad.setColorAt(1.0, QColor(90, 180, 255, 235))  # Primary Blue (#5AB4FF)
                 else:
-                    bar_grad.setColorAt(0.0, QColor(192, 132, 252, 240))
-                    bar_grad.setColorAt(1.0, QColor(147, 51, 234, 220))
+                    bar_grad.setColorAt(0.0, QColor(213, 0, 249, 240))   # Accent Violet (#D500F9)
+                    bar_grad.setColorAt(1.0, QColor(142, 36, 170, 220))
 
                 painter.setBrush(QBrush(bar_grad))
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawRoundedRect(QRectF(x, y, bar_width, clamped_h), 1.6, 1.6)
 
         elif self.state == "done":
-            painter.setPen(QPen(QColor(16, 185, 129), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            painter.setPen(QPen(QColor(90, 180, 255), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
             cx = self.width() - 28
             cy = self.height() // 2
             painter.drawLine(cx - 6, cy, cx - 2, cy + 4)
@@ -361,11 +361,11 @@ class RecordingHUD(QWidget):
                 retry_y = float((self.height() - retry_h) / 2.0)
                 retry_rect = QRectF(retry_x, retry_y, retry_w, retry_h)
 
-                painter.setBrush(QBrush(QColor(16, 185, 129, 45)))
-                painter.setPen(QPen(QColor(16, 185, 129, 210), 1.2))
+                painter.setBrush(QBrush(QColor(0, 230, 118, 45)))
+                painter.setPen(QPen(QColor(0, 230, 118, 210), 1.2))
                 painter.drawRoundedRect(retry_rect, 13.0, 13.0)
 
-                painter.setPen(QColor(167, 243, 208))
+                painter.setPen(QColor(105, 240, 174))
                 painter.drawText(retry_rect, int(Qt.AlignmentFlag.AlignCenter), "🔁 Retry")
 
                 # 2. "Solutions →" button
@@ -375,11 +375,11 @@ class RecordingHUD(QWidget):
                 sol_y = retry_y
                 sol_rect = QRectF(sol_x, sol_y, sol_w, sol_h)
 
-                painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
-                painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
+                painter.setBrush(QBrush(QColor(255, 82, 82, 45)))
+                painter.setPen(QPen(QColor(255, 82, 82, 190), 1.2))
                 painter.drawRoundedRect(sol_rect, 13.0, 13.0)
 
-                painter.setPen(QColor(254, 202, 202))
+                painter.setPen(QColor(255, 205, 210))
                 painter.drawText(sol_rect, int(Qt.AlignmentFlag.AlignCenter), "Solutions →")
             else:
                 # Single "View Solutions →" button
@@ -389,9 +389,9 @@ class RecordingHUD(QWidget):
                 btn_y = float((self.height() - btn_h) / 2.0)
                 btn_rect = QRectF(btn_x, btn_y, btn_w, btn_h)
 
-                painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
-                painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
+                painter.setBrush(QBrush(QColor(255, 82, 82, 45)))
+                painter.setPen(QPen(QColor(255, 82, 82, 190), 1.2))
                 painter.drawRoundedRect(btn_rect, 13.0, 13.0)
 
-                painter.setPen(QColor(254, 202, 202))
+                painter.setPen(QColor(255, 205, 210))
                 painter.drawText(btn_rect, int(Qt.AlignmentFlag.AlignCenter), "View Solutions →")

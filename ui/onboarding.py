@@ -8,11 +8,12 @@ elevated dark secondary buttons, and instant feedback.
 
 import logging
 import subprocess
+from pathlib import Path
 from typing import Optional, List
 
 try:
     from PyQt6.QtCore import Qt, pyqtSignal, QUrl
-    from PyQt6.QtGui import QColor, QFont, QDesktopServices, QCursor
+    from PyQt6.QtGui import QColor, QFont, QDesktopServices, QCursor, QIcon
     from PyQt6.QtWidgets import (
         QDialog, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
         QPushButton, QLabel, QLineEdit, QRadioButton, QButtonGroup,
@@ -28,6 +29,12 @@ from core.config import AppConfig
 from core.groq_client import GroqService
 from core.platform import is_linux, is_macos, is_windows, get_platform
 from core.autostart import set_autostart
+from core.theme import (
+    DARK_BACKGROUND, DARK_SURFACE, DARK_CARD, DARK_CARD_HOVER,
+    DARK_CARD_BORDER, DARK_CARD_BORDER_HOVER, PRIMARY_BLUE,
+    ACCENT_GREEN, ACCENT_VIOLET, ACCENT_RED,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY
+)
 from ui.shortcut_recorder import ShortcutRecorderWidget
 
 logger = logging.getLogger("FreeFlow.Onboarding")
@@ -64,56 +71,56 @@ class StepPillButton(QPushButton):
     def update_style(self):
         if self.is_active:
             self.setText(f"● {self.raw_label}")
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #12241b;
-                    color: #34d399;
-                    border: 1px solid #10b981;
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #162438;
+                    color: {PRIMARY_BLUE};
+                    border: 1px solid {PRIMARY_BLUE};
                     border-radius: 16px;
                     padding: 4px 14px;
                     font-size: 12px;
                     font-weight: 600;
                     letter-spacing: -0.2px;
-                }
-                QPushButton:hover {
-                    background-color: #162e22;
-                    border-color: #34d399;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: #1d314d;
+                    border-color: #7ec5ff;
+                }}
             """)
         elif self.is_completed:
             self.setText(f"✓ {self.raw_label}")
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #14171f;
-                    color: #10b981;
-                    border: 1px solid #232838;
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {DARK_CARD};
+                    color: {ACCENT_GREEN};
+                    border: 1px solid {DARK_CARD_BORDER};
                     border-radius: 16px;
                     padding: 4px 12px;
                     font-size: 12px;
                     font-weight: 500;
-                }
-                QPushButton:hover {
-                    background-color: #1c212c;
-                    border-color: #384257;
-                    color: #34d399;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {DARK_CARD_HOVER};
+                    border-color: {DARK_CARD_BORDER_HOVER};
+                    color: #69f0ae;
+                }}
             """)
         else:
             self.setText(self.raw_label)
-            self.setStyleSheet("""
-                QPushButton {
+            self.setStyleSheet(f"""
+                QPushButton {{
                     background-color: transparent;
-                    color: #62666d;
+                    color: {TEXT_TERTIARY};
                     border: 1px solid transparent;
                     border-radius: 16px;
                     padding: 4px 10px;
                     font-size: 12px;
                     font-weight: 500;
-                }
-                QPushButton:hover {
-                    background-color: #14161c;
-                    color: #9ca3af;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {DARK_CARD};
+                    color: {TEXT_SECONDARY};
+                }}
             """)
 
 
@@ -136,6 +143,11 @@ class OnboardingWizard(QDialog):
         self.setWindowTitle("Welcome to FreeFlow")
         self.setFixedSize(780, 600)
         self.setModal(True)
+
+        assets_dir = Path(__file__).resolve().parent.parent / "assets"
+        icon_path = assets_dir / "icon.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self._apply_global_theme()
 
@@ -167,58 +179,59 @@ class OnboardingWizard(QDialog):
         self._update_step_state()
 
     def _apply_global_theme(self):
-        """Strict Raycast/Linear design tokens with robust selectors."""
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #08090b;
-                color: #f4f4f6;
+        """Obsidian pitch-black design tokens with robust selectors."""
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {DARK_BACKGROUND};
+                color: {TEXT_PRIMARY};
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            }
-            QFrame#HeaderBar {
-                background-color: #0c0d10;
-                border-bottom: 1px solid #181a20;
-            }
-            QFrame#NavBar {
-                background-color: #0c0d10;
-                border-top: 1px solid #181a20;
-            }
-            QFrame#SurfaceCard, QFrame[surface="true"] {
-                background-color: #0f1115;
-                border: 1px solid #1c1f26;
-                border-radius: 10px;
-            }
-            QLineEdit {
-                background-color: #0f1115;
-                color: #f4f4f6;
-                border: 1px solid #1f232c;
+            }}
+            QFrame#HeaderBar {{
+                background-color: {DARK_SURFACE};
+                border-bottom: 1px solid {DARK_CARD_BORDER};
+            }}
+            QFrame#NavBar {{
+                background-color: {DARK_SURFACE};
+                border-top: 1px solid {DARK_CARD_BORDER};
+            }}
+            QFrame#SurfaceCard, QFrame[surface="true"] {{
+                background-color: {DARK_CARD};
+                border: 1px solid {DARK_CARD_BORDER};
+                border-radius: 12px;
+            }}
+            QLineEdit {{
+                background-color: {DARK_CARD};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {DARK_CARD_BORDER};
                 border-radius: 8px;
                 padding: 9px 12px;
                 font-size: 13px;
-                selection-background-color: #10b981;
-            }
-            QLineEdit:focus {
-                border: 1px solid #10b981;
-                background-color: #12141a;
-            }
-            QCheckBox, QRadioButton {
-                color: #d0d6e0;
+                selection-background-color: {PRIMARY_BLUE};
+                selection-color: #000000;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {PRIMARY_BLUE};
+                background-color: #1c1c22;
+            }}
+            QCheckBox, QRadioButton {{
+                color: {TEXT_SECONDARY};
                 font-size: 13px;
                 spacing: 8px;
-            }
-            QCheckBox::indicator, QRadioButton::indicator {
+            }}
+            QCheckBox::indicator, QRadioButton::indicator {{
                 width: 16px;
                 height: 16px;
-                background-color: #0f1115;
-                border: 1px solid #22252e;
+                background-color: {DARK_CARD};
+                border: 1px solid {DARK_CARD_BORDER};
                 border-radius: 4px;
-            }
-            QRadioButton::indicator {
+            }}
+            QRadioButton::indicator {{
                 border-radius: 8px;
-            }
-            QCheckBox::indicator:checked, QRadioButton::indicator:checked {
-                background-color: #10b981;
-                border-color: #10b981;
-            }
+            }}
+            QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
+                background-color: {PRIMARY_BLUE};
+                border-color: {PRIMARY_BLUE};
+            }}
         """)
 
     # --------------------------------------------------------------------------
@@ -233,12 +246,15 @@ class OnboardingWizard(QDialog):
 
         # Brand mark
         brand_box = QHBoxLayout()
-        dot = QLabel("●")
-        dot.setStyleSheet("color: #10b981; font-size: 14px; margin-right: 4px;")
-        brand_box.addWidget(dot)
+        logo_lbl = QLabel()
+        logo_path = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+        if logo_path.exists():
+            logo_lbl.setPixmap(QIcon(str(logo_path)).pixmap(24, 24))
+            logo_lbl.setStyleSheet("margin-right: 6px;")
+            brand_box.addWidget(logo_lbl)
 
         brand_title = QLabel("FreeFlow Setup")
-        brand_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #f4f4f6; letter-spacing: -0.3px;")
+        brand_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {TEXT_PRIMARY}; letter-spacing: -0.3px;")
         brand_box.addWidget(brand_title)
         layout.addLayout(brand_box)
 
@@ -274,20 +290,20 @@ class OnboardingWizard(QDialog):
 
         self.btn_skip = QPushButton("Skip Setup")
         self.btn_skip.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_skip.setStyleSheet("""
-            QPushButton {
+        self.btn_skip.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
-                color: #71717a;
+                color: {TEXT_TERTIARY};
                 border: none;
                 font-size: 12px;
                 font-weight: 500;
                 padding: 8px 14px;
                 border-radius: 6px;
-            }
-            QPushButton:hover {
-                color: #f4f4f6;
-                background-color: #14161c;
-            }
+            }}
+            QPushButton:hover {{
+                color: {TEXT_PRIMARY};
+                background-color: {DARK_CARD};
+            }}
         """)
         self.btn_skip.clicked.connect(self._skip_wizard)
         layout.addWidget(self.btn_skip)
@@ -296,51 +312,52 @@ class OnboardingWizard(QDialog):
 
         self.btn_back = QPushButton("← Back")
         self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_back.setStyleSheet("""
-            QPushButton {
-                background-color: #14171f;
-                color: #d0d6e0;
-                border: 1px solid #232836;
+        self.btn_back.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {DARK_CARD};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {DARK_CARD_BORDER};
                 border-radius: 8px;
                 padding: 10px 22px;
                 font-size: 13px;
                 font-weight: 500;
                 min-width: 85px;
-            }
-            QPushButton:hover {
-                background-color: #1c212c;
-                border-color: #3b4559;
+            }}
+            QPushButton:hover {{
+                background-color: {DARK_CARD_HOVER};
+                border-color: {DARK_CARD_BORDER_HOVER};
                 color: #ffffff;
-            }
-            QPushButton:pressed {
-                background-color: #11131a;
-            }
+            }}
+            QPushButton:pressed {{
+                background-color: #121216;
+            }}
         """)
         self.btn_back.clicked.connect(self._on_back)
         layout.addWidget(self.btn_back)
 
         self.btn_next = QPushButton("Continue →")
         self.btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_next.setStyleSheet("""
-            QPushButton {
-                background-color: #10b981;
-                color: #022c22;
-                border: 1px solid #10b981;
+        self.btn_next.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PRIMARY_BLUE};
+                color: #000000;
+                border: 1px solid {PRIMARY_BLUE};
                 border-radius: 8px;
                 padding: 10px 24px;
                 font-size: 13px;
                 font-weight: 600;
                 min-width: 140px;
-            }
-            QPushButton:hover {
-                background-color: #059669;
-                border-color: #059669;
-                color: #ffffff;
-            }
-            QPushButton:pressed {
-                background-color: #047857;
-                border-color: #047857;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: #7ec5ff;
+                border-color: #7ec5ff;
+                color: #000000;
+            }}
+            QPushButton:pressed {{
+                background-color: #3b9fff;
+                border-color: #3b9fff;
+            }}
+        """)
         """)
         self.btn_next.clicked.connect(self._on_next)
         layout.addWidget(self.btn_next)
@@ -436,12 +453,19 @@ class OnboardingWizard(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(44, 32, 44, 28)
-        layout.setSpacing(20)
+        layout.setSpacing(18)
+
+        # Brand Logo Mark Header
+        logo_lbl = QLabel()
+        logo_path = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+        if logo_path.exists():
+            logo_lbl.setPixmap(QIcon(str(logo_path)).pixmap(48, 48))
+            layout.addWidget(logo_lbl)
 
         # Title
         plat_title = "macOS" if is_macos() else ("Windows" if is_windows() else "Linux")
         t = QLabel(f"Voice-to-Text Dictation, Built for {plat_title}")
-        t.setStyleSheet("font-size: 22px; font-weight: 700; color: #f4f4f6; letter-spacing: -0.4px;")
+        t.setStyleSheet(f"font-size: 22px; font-weight: 700; color: {TEXT_PRIMARY}; letter-spacing: -0.4px;")
         layout.addWidget(t)
 
         sub = QLabel(

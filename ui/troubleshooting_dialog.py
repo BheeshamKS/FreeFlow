@@ -33,6 +33,12 @@ from core.groq_client import GroqService
 from core.troubleshooting import (
     ErrorDiagnostic, diagnose_error, get_common_diagnostic, COMMON_TOPICS
 )
+from core.theme import (
+    DARK_BACKGROUND, DARK_SURFACE, DARK_CARD, DARK_CARD_HOVER,
+    DARK_CARD_BORDER, DARK_CARD_BORDER_HOVER, PRIMARY_BLUE,
+    ACCENT_GREEN, ACCENT_VIOLET, ACCENT_RED,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_TERTIARY
+)
 
 logger = logging.getLogger("FreeFlow.TroubleshootingUI")
 
@@ -66,108 +72,117 @@ class TroubleshootingDialog(QDialog):
         self.setMinimumSize(600, 680)
         self.resize(650, 710)
 
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #0b0d11;
-                color: #f3f4f6;
+        assets_dir = Path(__file__).resolve().parent.parent / "assets"
+        icon_path = assets_dir / "icon.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {DARK_BACKGROUND};
+                color: {TEXT_PRIMARY};
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-            }
-            QScrollArea {
+            }}
+            QScrollArea {{
                 background: transparent;
                 border: none;
-            }
-            QScrollBar:vertical {
+            }}
+            QScrollBar:vertical {{
                 border: none;
-                background: #0d1117;
+                background: {DARK_BACKGROUND};
                 width: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background: #232836;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {DARK_CARD_BORDER};
                 border-radius: 3px;
                 min-height: 24px;
-            }
-            QFrame.CardFrame {
-                background-color: #12151c;
-                border: 1px solid #1f2430;
-                border-radius: 10px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {DARK_CARD_BORDER_HOVER};
+            }}
+            QFrame.CardFrame {{
+                background-color: {DARK_CARD};
+                border: 1px solid {DARK_CARD_BORDER};
+                border-radius: 12px;
                 padding: 14px;
-            }
-            QLabel {
-                color: #e2e8f0;
-            }
-            QPushButton.TopicTab {
-                background-color: #161b24;
-                color: #94a3b8;
-                border: 1px solid #232a3b;
-                border-radius: 6px;
+            }}
+            QLabel {{
+                color: {TEXT_PRIMARY};
+            }}
+            QPushButton.TopicTab {{
+                background-color: {DARK_CARD};
+                color: {TEXT_SECONDARY};
+                border: 1px solid {DARK_CARD_BORDER};
+                border-radius: 8px;
                 padding: 6px 12px;
                 font-size: 12px;
                 font-weight: 500;
-            }
-            QPushButton.TopicTab:hover {
-                background-color: #1f2636;
-                color: #ffffff;
-                border-color: #3b4661;
-            }
-            QPushButton.TopicTabActive {
-                background-color: #1e293b;
-                color: #38bdf8;
-                border: 1px solid #38bdf8;
-                border-radius: 6px;
+            }}
+            QPushButton.TopicTab:hover {{
+                background-color: {DARK_CARD_HOVER};
+                color: {TEXT_PRIMARY};
+                border-color: {DARK_CARD_BORDER_HOVER};
+            }}
+            QPushButton.TopicTabActive {{
+                background-color: #162438;
+                color: {PRIMARY_BLUE};
+                border: 1px solid {PRIMARY_BLUE};
+                border-radius: 8px;
                 padding: 6px 12px;
                 font-size: 12px;
                 font-weight: 600;
-            }
-            QPushButton.ErrorTabActive {
+            }}
+            QPushButton.ErrorTabActive {{
                 background-color: #3b1219;
                 color: #f87171;
-                border: 1px solid #ef4444;
-                border-radius: 6px;
+                border: 1px solid {ACCENT_RED};
+                border-radius: 8px;
                 padding: 6px 12px;
                 font-size: 12px;
                 font-weight: 600;
-            }
-            QPushButton.PrimaryBtn {
-                background-color: #10b981;
-                color: #ffffff;
-                border: 1px solid #10b981;
+            }}
+            QPushButton.PrimaryBtn {{
+                background-color: {PRIMARY_BLUE};
+                color: #000000;
+                border: 1px solid {PRIMARY_BLUE};
                 border-radius: 8px;
                 padding: 8px 16px;
                 font-size: 13px;
                 font-weight: 600;
-            }
-            QPushButton.PrimaryBtn:hover {
-                background-color: #059669;
-                border-color: #059669;
-            }
-            QPushButton.SecondaryBtn {
-                background-color: #1a202c;
-                color: #cbd5e1;
-                border: 1px solid #2d3748;
+            }}
+            QPushButton.PrimaryBtn:hover {{
+                background-color: #7ec5ff;
+                border-color: #7ec5ff;
+                color: #000000;
+            }}
+            QPushButton.SecondaryBtn {{
+                background-color: {DARK_CARD};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {DARK_CARD_BORDER};
                 border-radius: 8px;
                 padding: 8px 16px;
                 font-size: 13px;
                 font-weight: 500;
-            }
-            QPushButton.SecondaryBtn:hover {
-                background-color: #242c3d;
-                border-color: #4a5568;
-                color: #ffffff;
-            }
-            QPushButton.GitHubBtn {
-                background-color: #24292e;
-                color: #f0f6fc;
-                border: 1px solid #444c56;
+            }}
+            QPushButton.SecondaryBtn:hover {{
+                background-color: {DARK_CARD_HOVER};
+                border-color: {DARK_CARD_BORDER_HOVER};
+                color: {TEXT_PRIMARY};
+            }}
+            QPushButton.GitHubBtn {{
+                background-color: {DARK_CARD};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {DARK_CARD_BORDER};
                 border-radius: 8px;
                 padding: 8px 16px;
                 font-size: 13px;
                 font-weight: 500;
-            }
-            QPushButton.GitHubBtn:hover {
-                background-color: #2f363d;
-                border-color: #58a6ff;
-            }
-            QPushButton.SimulateBtn {
+            }}
+            QPushButton.GitHubBtn:hover {{
+                background-color: {DARK_CARD_HOVER};
+                border-color: {PRIMARY_BLUE};
+            }}
+            QPushButton.SimulateBtn {{
                 background-color: #2d1522;
                 color: #f472b6;
                 border: 1px solid #831843;
@@ -175,20 +190,20 @@ class TroubleshootingDialog(QDialog):
                 padding: 8px 14px;
                 font-size: 12px;
                 font-weight: 600;
-            }
-            QPushButton.SimulateBtn:hover {
+            }}
+            QPushButton.SimulateBtn:hover {{
                 background-color: #4c1d38;
                 border-color: #f472b6;
-            }
-            QTextEdit {
-                background-color: #090a0d;
+            }}
+            QTextEdit {{
+                background-color: {DARK_SURFACE};
                 color: #f87171;
-                border: 1px solid #1e222d;
-                border-radius: 6px;
+                border: 1px solid {DARK_CARD_BORDER};
+                border-radius: 8px;
                 font-family: "JetBrains Mono", "Ubuntu Mono", "Consolas", monospace;
                 font-size: 12px;
                 padding: 8px;
-            }
+            }}
         """)
 
         self.tab_buttons: Dict[str, QPushButton] = {}

@@ -587,5 +587,53 @@ class TestSingleInstanceAndLauncher(unittest.TestCase):
             self.assertNotIn("--minimized", content)
 
 
+class TestThemeAndFreeFlowPocketIntegration(unittest.TestCase):
+    """Test unified design tokens, assets standardization, and FreeFlow Pocket documentation."""
+
+    def test_design_tokens_parity(self):
+        from core.theme import (
+            DARK_BACKGROUND, DARK_SURFACE, DARK_CARD, DARK_CARD_BORDER,
+            PRIMARY_BLUE, ACCENT_GREEN, ACCENT_VIOLET, get_application_stylesheet
+        )
+        self.assertEqual(DARK_BACKGROUND, "#000000")
+        self.assertEqual(DARK_SURFACE, "#0E0E12")
+        self.assertEqual(DARK_CARD, "#18181C")
+        self.assertEqual(DARK_CARD_BORDER, "#26262E")
+        self.assertEqual(PRIMARY_BLUE, "#5AB4FF")
+        self.assertEqual(ACCENT_GREEN, "#00E676")
+        self.assertEqual(ACCENT_VIOLET, "#D500F9")
+
+        stylesheet = get_application_stylesheet()
+        self.assertIn("#000000", stylesheet)
+        self.assertIn("#5AB4FF", stylesheet)
+        self.assertIn("#18181C", stylesheet)
+
+    def test_assets_standardization(self):
+        root = Path(__file__).resolve().parent.parent
+        assets_dir = root / "assets"
+        self.assertTrue((assets_dir / "logo.svg").exists(), "assets/logo.svg must exist")
+        self.assertTrue((assets_dir / "icon.png").exists(), "assets/icon.png must exist")
+        self.assertTrue((assets_dir / "icon.ico").exists(), "assets/icon.ico must exist")
+
+        # Unused legacy logos must be purged
+        self.assertFalse((assets_dir / "Logo.svg").exists(), "assets/Logo.svg should be purged")
+        self.assertFalse((assets_dir / "Logo.vectorcraft").exists(), "assets/Logo.vectorcraft should be purged")
+
+        # Recording microphone assets must be preserved
+        self.assertTrue((assets_dir / "icon_recording.png").exists())
+        self.assertTrue((assets_dir / "icon_processing.png").exists())
+
+    def test_readme_freeflow_pocket_links(self):
+        root = Path(__file__).resolve().parent.parent
+        readme_path = root / "README.md"
+        self.assertTrue(readme_path.exists())
+        content = readme_path.read_text(encoding="utf-8")
+
+        self.assertIn("https://github.com/BheeshamKS/FreeFlow-Pocket", content)
+        self.assertIn("https://github.com/BheeshamKS/FreeFlow-Pocket/releases/latest", content)
+        # Verify no direct APK download link is given
+        self.assertNotIn(".apk", content)
+
+
 if __name__ == "__main__":
     unittest.main()
