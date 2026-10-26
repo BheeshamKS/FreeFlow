@@ -403,5 +403,189 @@ class TestHUDEnhancements(unittest.TestCase):
         dlg.close()
 
 
+class TestAudioRecoveryAndRetry(unittest.TestCase):
+    """Test audio preservation, recovery caching, HUD retry button, and tray click behavior."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        import sys
+        if QApplication.instance() is None:
+            cls._qapp = QApplication(sys.argv)
+
+    def test_recovery_audio_path(self):
+        from core.platform import get_recovery_audio_path
+        path = get_recovery_audio_path()
+        self.assertIsNotNone(path)
+        self.assertTrue(str(path).endswith(".wav"))
+        self.assertTrue(path.parent.exists())
+
+    def test_hud_retry_button_click(self):
+        from ui.hud import RecordingHUD
+        from PyQt6.QtCore import Qt, QPointF
+        from PyQt6.QtGui import QMouseEvent
+
+        hud = RecordingHUD()
+        hud.set_error("Connection Error", error_details="Timeout", recovery_available=True)
+        self.assertTrue(hud.recovery_available)
+
+        retry_signals = []
+        solutions_signals = []
+        hud.retry_requested.connect(lambda: retry_signals.append(True))
+        hud.solutions_requested.connect(lambda msg: solutions_signals.append(msg))
+
+        # Click inside the retry button (x = width - 200 + 10, y = 20)
+        click_retry = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(float(hud.width() - 170), 22.0),
+            QPointF(float(hud.width() - 170), 22.0),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier
+        )
+        hud.mousePressEvent(click_retry)
+        self.assertEqual(retry_signals, [True])
+        self.assertEqual(solutions_signals, [])
+
+        # Click inside the solutions button (x = width - 30, y = 20)
+        click_sol = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(float(hud.width() - 30), 22.0),
+            QPointF(float(hud.width() - 30), 22.0),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier
+        )
+        hud.mousePressEvent(click_sol)
+        self.assertEqual(solutions_signals, ["Timeout"])
+        hud.hide_hud()
+
+    def test_tray_double_click_and_trigger(self):
+        from ui.tray import SystemTrayController
+        from PyQt6.QtWidgets import QSystemTrayIcon
+
+        cfg = AppConfig()
+        tray = SystemTrayController(cfg)
+
+        hub_signals = []
+        retry_signals = []
+        tray.open_hub_requested.connect(lambda: hub_signals.append("hub"))
+        tray.retry_transcription_requested.connect(lambda: retry_signals.append("retry"))
+
+        # Test DoubleClick activates Hub
+        tray._on_tray_activated(QSystemTrayIcon.ActivationReason.DoubleClick)
+        self.assertEqual(hub_signals, ["hub"])
+
+        # Test Single Click / Trigger activates Hub
+        tray._on_tray_activated(QSystemTrayIcon.ActivationReason.Trigger)
+        self.assertEqual(hub_signals, ["hub", "hub"])
+
+        # Test recovery audio tray action
+        tray.set_recovery_audio_available(True, duration=125.0)
+        self.assertTrue(tray.retry_action.isVisible())
+        self.assertIn("2m 05s", tray.retry_action.text())
+
+        tray.retry_action.trigger()
+        self.assertEqual(retry_signals, ["retry"])
+
+        tray.set_recovery_audio_available(False)
+        self.assertFalse(tray.retry_action.isVisible())
+
+    def test_main_window_recovery_banner(self):
+        from ui.main_window import MainWindow
+        from core.history import HistoryManager
+
+        cfg = AppConfig()
+        hist = HistoryManager()
+        win = MainWindow(cfg, hist)
+
+        retry_signals = []
+        win.retry_transcription_requested.connect(lambda: retry_signals.append("retry"))
+
+        # Banner should be hidden initially
+        self.assertTrue(win.btn_retry_recovery.isHidden())
+
+        # Set recovery available
+        win.set_recovery_audio_available(True, duration=90.0)
+        self.assertFalse(win.btn_retry_recovery.isHidden())
+        self.assertIn("1m 30s", win.btn_retry_recovery.text())
+
+        # Trigger button click
+        win.btn_retry_recovery.click()
+        self.assertEqual(retry_signals, ["retry"])
+
+        # Clear recovery
+        win.set_recovery_audio_available(False)
+        self.assertTrue(win.btn_retry_recovery.isHidden())
+        win.close()
+
+    def test_troubleshooting_dialog_recovery_card(self):
+        import tempfile
+        from ui.troubleshooting_dialog import TroubleshootingDialog
+        from core.troubleshooting import diagnose_error
+
+        # Create temporary dummy WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(b"RIFFdummydataWAVEfmt ")
+            dummy_path = f.name
+
+        try:
+            diag = diagnose_error("APIConnectionError: network down")
+            dlg = TroubleshootingDialog(
+                parent=None,
+                diagnostic=diag,
+                recovery_audio_path=dummy_path,
+                recovery_audio_duration=75.0
+            )
+
+            # Check that recovery card exists
+            self.assertTrue(hasattr(dlg, "recovery_card"))
+            self.assertTrue(hasattr(dlg, "btn_retry_transcribe"))
+
+            retry_signals = []
+            dlg.retry_transcription_requested.connect(lambda: retry_signals.append("retry"))
+            dlg.btn_retry_transcribe.click()
+            self.assertEqual(retry_signals, ["retry"])
+            dlg.close()
+        finally:
+            if os.path.exists(dummy_path):
+                os.unlink(dummy_path)
+
+
+class TestSingleInstanceAndLauncher(unittest.TestCase):
+    """Test SingleInstanceGuard IPC, send_activation method, and desktop launcher integration."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+        import sys
+        if QApplication.instance() is None:
+            cls._qapp = QApplication(sys.argv)
+
+    def test_single_instance_guard_api(self):
+        from core.single_instance import SingleInstanceGuard
+        guard = SingleInstanceGuard("test_ipc_guard")
+        self.assertTrue(hasattr(guard, "acquire"))
+        self.assertTrue(hasattr(guard, "send_activation"))
+        self.assertTrue(hasattr(guard, "cleanup"))
+        guard.cleanup()
+
+    def test_desktop_launcher_creation(self):
+        import tempfile
+        from core.autostart import ensure_desktop_launcher
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            launcher_path = ensure_desktop_launcher(target_dir=Path(tmp_dir))
+            self.assertIsNotNone(launcher_path)
+            self.assertTrue(launcher_path.exists())
+            content = launcher_path.read_text(encoding="utf-8")
+            self.assertIn("Name=FreeFlow", content)
+            self.assertIn("Exec=", content)
+            # Standard launcher must NOT contain autostart/minimized flags so it always presents the app
+            self.assertNotIn("--autostart", content)
+            self.assertNotIn("--minimized", content)
+
+
 if __name__ == "__main__":
     unittest.main()

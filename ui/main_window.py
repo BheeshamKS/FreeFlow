@@ -295,6 +295,7 @@ class MainWindow(QMainWindow):
     settings_changed = pyqtSignal(object) if QMainWindow is not None else None
     quit_requested = pyqtSignal() if QMainWindow is not None else None
     simulate_error_requested = pyqtSignal(str) if QMainWindow is not None else None
+    retry_transcription_requested = pyqtSignal() if QMainWindow is not None else None
 
     def __init__(self, config: AppConfig, history: HistoryManager, parent=None):
         super().__init__(parent)
@@ -611,6 +612,28 @@ class MainWindow(QMainWindow):
         self.btn_hotkey_badge.clicked.connect(self._open_shortcut_settings)
         hero_layout.addWidget(self.btn_hotkey_badge, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        # Audio Recovery Banner / Button (Hidden by default, shown when transcription fails or recovery audio is available)
+        self.btn_retry_recovery = QPushButton("🔁 Retry Last Audio Recording")
+        self.btn_retry_recovery.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_retry_recovery.setVisible(False)
+        self.btn_retry_recovery.setStyleSheet("""
+            QPushButton {
+                background-color: #064e3b;
+                color: #a7f3d0;
+                border: 1px solid #10b981;
+                border-radius: 6px;
+                padding: 7px 16px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #047857;
+                color: #ffffff;
+            }
+        """)
+        self.btn_retry_recovery.clicked.connect(self._on_retry_recovery_clicked)
+        hero_layout.addWidget(self.btn_retry_recovery, alignment=Qt.AlignmentFlag.AlignCenter)
+
         layout.addWidget(hero)
 
         # Minimalist Stats Grid (Populated cleanly with real history)
@@ -671,6 +694,21 @@ class MainWindow(QMainWindow):
     def _on_orb_clicked(self):
         if self.toggle_recording_requested:
             self.toggle_recording_requested.emit()
+
+    def _on_retry_recovery_clicked(self):
+        if self.retry_transcription_requested:
+            self.retry_transcription_requested.emit()
+
+    def set_recovery_audio_available(self, available: bool, duration: float = 0.0):
+        """Show or hide the recovery retry banner on the dashboard."""
+        if hasattr(self, "btn_retry_recovery") and self.btn_retry_recovery:
+            if available:
+                mins, secs = divmod(int(duration), 60)
+                dur_str = f" ({mins}m {secs:02d}s)" if duration > 0 else ""
+                self.btn_retry_recovery.setText(f"🔁 Retry Last Audio Recording{dur_str}")
+                self.btn_retry_recovery.setVisible(True)
+            else:
+                self.btn_retry_recovery.setVisible(False)
 
     def _open_shortcut_settings(self):
         self._switch_tab(2)
@@ -1117,6 +1155,8 @@ class MainWindow(QMainWindow):
                 dlg.open_settings_requested.connect(self._switch_tab)
                 if self.simulate_error_requested:
                     dlg.simulate_error_requested.connect(self.simulate_error_requested)
+                if self.retry_transcription_requested:
+                    dlg.retry_transcription_requested.connect(self.retry_transcription_requested)
                 dlg.exec()
         finally:
             self.btn_test.setEnabled(True)
@@ -1131,6 +1171,8 @@ class MainWindow(QMainWindow):
         dlg.open_settings_requested.connect(self._switch_tab)
         if self.simulate_error_requested:
             dlg.simulate_error_requested.connect(self.simulate_error_requested)
+        if self.retry_transcription_requested:
+            dlg.retry_transcription_requested.connect(self.retry_transcription_requested)
         dlg.exec()
 
     def _build_update_banner(self) -> QFrame:

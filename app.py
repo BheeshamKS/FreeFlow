@@ -10,6 +10,8 @@ animated floating waveform HUD overlay, and single-instance IPC enforcement.
 import argparse
 import logging
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -42,11 +44,13 @@ except ImportError:
     print("Error: PyQt6 is not installed. Please run './setup.sh' to install all dependencies.")
     sys.exit(1)
 
+from core.autostart import ensure_desktop_launcher
 from core.config import AppConfig
 from core.groq_client import GroqWorker
 from core.history import HistoryManager
 from core.hotkey import HotkeyListener
 from core.injector import TextInjector
+from core.platform import get_recovery_audio_path, is_linux
 from core.recorder import AudioRecorder
 from core.single_instance import SingleInstanceGuard
 from core.troubleshooting import diagnose_error, get_common_diagnostic, ErrorDiagnostic
@@ -82,19 +86,33 @@ class FreeFlowApplication(QObject):
 
         logger.info(f"Initializing FreeFlow v{APP_VERSION}...")
 
-        # 1. Single Instance Guard
+        # 1. Single Instance Guard & Launcher Inter-Process Communication
         self.guard = SingleInstanceGuard(self.qapp)
         self.guard.activation_requested.connect(self.on_activation_requested)
         if not self.guard.acquire():
-            logger.info("Existing instance active. Second instance terminated.")
+            # If launched during boot/login or with --minimized / --autostart flag, DO NOT send activation!
+            is_boot = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv) or ("--minimized" in sys.argv)
+            if start_minimized or is_boot:
+                logger.info("FreeFlow background/autostart instance detected already running daemon. Exiting silently.")
+                sys.exit(0)
+            logger.info("Another instance of FreeFlow is already running. Forwarding activation to foreground window.")
+            self.guard.send_activation("ACTIVATE")
             sys.exit(0)
 
-        # 2. Load Configuration & History
+        # 2. Ensure standard desktop application launcher entry is present in app menu
+        ensure_desktop_launcher()
+
+        # 3. Load Configuration & History
         self.config = AppConfig.load()
         self.history = HistoryManager()
         self._record_start_time = 0.0
 
-        # 3. Instantiate Core Workers
+        # Audio Recovery Buffer State (Protects against network/API failures on long recordings)
+        self._recovery_audio_path: Optional[str] = None
+        self._recovery_audio_duration: float = 0.0
+        self._recovery_audio_available: bool = False
+
+        # 4. Instantiate Core Workers
         self.recorder = AudioRecorder(
             sample_rate=self.config.sample_rate,
             channels=self.config.channels,
@@ -107,22 +125,22 @@ class FreeFlowApplication(QObject):
         )
         self.hotkey_listener = HotkeyListener(self.config)
 
-        # 4. Instantiate UI Components
+        # 5. Instantiate UI Components
         self.hud = RecordingHUD()
         self.tray = SystemTrayController(self.config)
         self.main_window = MainWindow(self.config, self.history)
-        self._current_groq_worker: GroqWorker = None
+        self._current_groq_worker: Optional[GroqWorker] = None
 
-        # 5. Wire Signals
+        # 6. Wire Signals
         self._connect_signals()
 
-        # 6. Start Global Hotkey Listener
+        # 7. Start Global Hotkey Listener
         self.hotkey_listener.start()
 
-        # 7. Show Tray
+        # 8. Show Tray
         self.tray.show()
 
-        # 8. First-Time Setup / Out of the Box Experience (OOBE):
+        # 9. First-Time Setup / Out of the Box Experience (OOBE):
         # If user has not completed setup wizard or has not yet entered their Groq API key,
         # guide them through the onboarding experience immediately.
         if not self.config.first_run_completed or not self.config.groq_api_key:
@@ -130,7 +148,7 @@ class FreeFlowApplication(QObject):
             QTimer.singleShot(150, self.open_onboarding_wizard)
         else:
             # Check if launched automatically on graphical system login / boot
-            is_boot_startup = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv)
+            is_boot_startup = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv) or ("--minimized" in sys.argv)
             if start_minimized:
                 should_show = False
             elif is_boot_startup:
@@ -142,11 +160,9 @@ class FreeFlowApplication(QObject):
                 should_show = True
 
             if should_show:
-                self.main_window.show()
-                self.main_window.raise_()
-                self.main_window.activateWindow()
+                self.show_main_window()
 
-        # 9. Startup Update Check
+        # 10. Startup Update Check
         if self.config.check_updates_on_startup:
             QTimer.singleShot(3000, self._check_startup_updates)
 
@@ -166,6 +182,7 @@ class FreeFlowApplication(QObject):
 
         # HUD Capsule Actions
         self.hud.solutions_requested.connect(self.show_troubleshooting_dialog)
+        self.hud.retry_requested.connect(self.retry_transcription)
 
         # System Tray Actions
         self.tray.open_hub_requested.connect(self.show_main_window)
@@ -173,10 +190,12 @@ class FreeFlowApplication(QObject):
         self.tray.check_updates_requested.connect(self._manual_check_updates)
         self.tray.troubleshoot_requested.connect(self.show_troubleshooting_dialog)
         self.tray.toggle_recording_requested.connect(self.hotkey_listener.trigger_toggle_manual)
+        self.tray.retry_transcription_requested.connect(self.retry_transcription)
         self.tray.quit_requested.connect(self.quit)
 
         # Main Window Hub Actions
         self.main_window.toggle_recording_requested.connect(self.hotkey_listener.trigger_toggle_manual)
+        self.main_window.retry_transcription_requested.connect(self.retry_transcription)
         self.main_window.settings_changed.connect(self.on_settings_changed)
         self.main_window.simulate_error_requested.connect(self.simulate_error)
         self.main_window.quit_requested.connect(self.quit)
@@ -187,10 +206,30 @@ class FreeFlowApplication(QObject):
         self.show_main_window()
 
     def show_main_window(self):
-        """Present the main Wispr Flow Hub window."""
-        self.main_window.show()
+        """Present the main Wispr Flow Hub window, restoring from minimized if needed."""
+        if self.main_window.isMinimized():
+            self.main_window.showNormal()
+        else:
+            self.main_window.show()
+
+        # Clear minimized state and mark active
+        self.main_window.setWindowState(
+            (self.main_window.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive
+        )
         self.main_window.raise_()
         self.main_window.activateWindow()
+
+        # On Linux X11, helper to overcome window manager focus-stealing prevention
+        if is_linux():
+            try:
+                if os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+                    subprocess.run(
+                        ["xdotool", "search", "--onlyvisible", "--name", "FreeFlow", "windowactivate"],
+                        capture_output=True,
+                        timeout=0.3
+                    )
+            except Exception:
+                pass
 
     def open_settings(self):
         """Navigate to the settings tab in the Hub window."""
@@ -239,6 +278,19 @@ class FreeFlowApplication(QObject):
             self.main_window.set_app_state("ready")
             return
 
+        # Back up recorded audio to recovery path so it is never lost on network or API failure
+        try:
+            recovery_path = str(get_recovery_audio_path())
+            if os.path.abspath(audio_file_path) != os.path.abspath(recovery_path):
+                shutil.copy2(audio_file_path, recovery_path)
+            self._recovery_audio_path = recovery_path
+        except Exception as e:
+            logger.warning(f"Could not copy audio to recovery buffer: {e}")
+            self._recovery_audio_path = audio_file_path
+
+        self._recovery_audio_duration = duration
+        self._recovery_audio_available = True
+
         # Visual state transition
         if self.config.show_hud:
             self.hud.set_state("transcribing")
@@ -267,6 +319,9 @@ class FreeFlowApplication(QObject):
             self.tray.set_state("ready")
             self.main_window.set_app_state("ready")
             return
+
+        # Mark recovery audio as successfully transcribed
+        self._set_recovery_state(False)
 
         # Save to history
         self.history.add_entry(finalized_text, duration)
@@ -300,10 +355,47 @@ class FreeFlowApplication(QObject):
         self._last_error = error_message
         diagnostic = diagnose_error(error_message)
 
+        # Mark recovery audio available so user can retry without speaking again
+        has_recovery = bool(self._recovery_audio_path and os.path.isfile(self._recovery_audio_path))
+        self._set_recovery_state(has_recovery, self._recovery_audio_duration)
+
         if self.config.show_hud:
-            self.hud.set_error(message=diagnostic.title, error_details=error_message)
-        self.tray.notify_error(f"{diagnostic.title}. Click HUD to view solutions.")
+            self.hud.set_error(
+                message=diagnostic.title,
+                error_details=error_message,
+                recovery_available=has_recovery
+            )
+        self.tray.notify_error(f"{diagnostic.title}. Click HUD to retry or view solutions.")
         self.main_window.set_app_state("ready")
+
+    def retry_transcription(self):
+        """Re-run transcription using the temporarily preserved audio buffer without re-recording."""
+        if not self._recovery_audio_path or not os.path.isfile(self._recovery_audio_path):
+            logger.warning("No recovery audio available to retry.")
+            self.tray.notify_warning("No saved audio available to retry.")
+            return
+
+        logger.info(f"Retrying transcription with saved recovery audio ({self._recovery_audio_duration:.2f}s): {self._recovery_audio_path}")
+
+        if self.config.show_hud:
+            self.hud.set_state("transcribing", message="Retrying transcription...")
+        self.tray.set_state("transcribing")
+        self.main_window.set_app_state("transcribing")
+
+        # Spawn background transcription worker with saved audio file
+        self._current_groq_worker = GroqWorker(self.config, self._recovery_audio_path)
+        self._current_groq_worker.status_changed.connect(self._on_groq_status_changed)
+        self._current_groq_worker.completed.connect(
+            lambda text: self._on_transcription_completed(text, self._recovery_audio_duration)
+        )
+        self._current_groq_worker.error.connect(self._on_groq_error)
+        self._current_groq_worker.start()
+
+    def _set_recovery_state(self, available: bool, duration: float = 0.0):
+        """Update UI affordances across Tray, MainWindow, and HUD when recovery audio state changes."""
+        self._recovery_audio_available = available
+        self.tray.set_recovery_audio_available(available, duration)
+        self.main_window.set_recovery_audio_available(available, duration)
 
     def show_troubleshooting_dialog(self, error_details: Optional[str] = None):
         """Display the interactive troubleshooting and solutions dialog."""
@@ -313,9 +405,22 @@ class FreeFlowApplication(QObject):
             # When opened from tray or settings menu without an active error, show common troubleshooting
             diagnostic = get_common_diagnostic("api_key")
 
-        dialog = TroubleshootingDialog(self.main_window, diagnostic=diagnostic, config=self.config)
+        has_recovery = bool(
+            self._recovery_audio_path and
+            os.path.isfile(self._recovery_audio_path) and
+            self._recovery_audio_available
+        )
+
+        dialog = TroubleshootingDialog(
+            self.main_window,
+            diagnostic=diagnostic,
+            config=self.config,
+            recovery_audio_path=self._recovery_audio_path if has_recovery else None,
+            recovery_audio_duration=self._recovery_audio_duration
+        )
         dialog.open_settings_requested.connect(self._on_solutions_open_settings)
         dialog.simulate_error_requested.connect(self.simulate_error)
+        dialog.retry_transcription_requested.connect(self.retry_transcription)
         dialog.exec()
 
     def simulate_error(self, error_msg: str):

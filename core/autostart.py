@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 from core.platform import is_linux, is_windows, is_macos
 
 logger = logging.getLogger("FreeFlow.Autostart")
@@ -54,8 +55,48 @@ def set_autostart(enable: bool, start_minimized: bool = False) -> bool:
         return False
 
 
+def ensure_desktop_launcher(target_dir: Optional[Path] = None) -> Optional[Path]:
+    """Ensure standard desktop launcher entry exists in ~/.local/share/applications for app menu."""
+    if not is_linux() and target_dir is None:
+        return None
+    try:
+        apps_dir = target_dir or (Path.home() / ".local" / "share" / "applications")
+        apps_dir.mkdir(parents=True, exist_ok=True)
+        desktop_file = apps_dir / "freeflow.desktop"
+
+        # Exec command WITHOUT autostart/minimized flags for standard app launcher
+        main_py = Path(__file__).resolve().parent.parent / "app.py"
+        icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+
+        appimage = os.environ.get("APPIMAGE")
+        if appimage and os.path.exists(appimage):
+            exec_cmd = f'"{appimage}"'
+        elif getattr(sys, "frozen", False):
+            exec_cmd = f'"{sys.executable}"'
+        else:
+            exec_cmd = f'"{sys.executable}" "{main_py}"'
+
+        content = f"""[Desktop Entry]
+Name=FreeFlow
+Comment=High-speed speech-to-text dictation application
+Exec={exec_cmd}
+Icon={icon_path}
+Terminal=false
+Type=Application
+Categories=Utility;Audio;AudioVideo;Accessibility;
+StartupNotify=false
+Keywords=whisper;voice;dictation;speech;transcription;groq;freeflow;
+"""
+        desktop_file.write_text(content, encoding="utf-8")
+        logger.debug(f"Ensured desktop application launcher at {desktop_file}")
+        return desktop_file
+    except Exception as e:
+        logger.debug(f"Failed to ensure desktop launcher: {e}")
+        return None
+
+
 def _set_autostart_linux(enable: bool, start_minimized: bool) -> bool:
-    """Configure XDG autostart .desktop file and systemd user service on Linux."""
+    """Configure XDG autostart .desktop file on Linux (standard cross-desktop specification)."""
     autostart_dir = Path.home() / ".config" / "autostart"
     desktop_file = autostart_dir / "freeflow.desktop"
     exec_cmd = _get_exec_command(start_minimized)
@@ -79,48 +120,22 @@ X-GNOME-Autostart-enabled=true
             desktop_file.unlink(missing_ok=True)
             logger.info("Removed XDG autostart entry")
 
-    # Update systemd user service if present
+    # Clean up redundant systemd user service if present to avoid dual-launch race conditions on boot
     service_file = Path.home() / ".config" / "systemd" / "user" / "freeflow.service"
-    if service_file.exists() or enable:
+    if service_file.exists():
         try:
-            service_dir = service_file.parent
-            service_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Determine working directory
-            working_dir = str(Path(__file__).resolve().parent.parent)
-            
-            service_content = f"""[Unit]
-Description=FreeFlow Voice Dictation Service
-Documentation=https://github.com/BheeshamKS/FreeFlow
-After=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart={exec_cmd}
-WorkingDirectory={working_dir}
-Environment=PYTHONUNBUFFERED=1
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-0
-Restart=on-failure
-RestartSec=3
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=graphical-session.target
-"""
-            service_file.write_text(service_content, encoding="utf-8")
-            
-            action = "enable" if enable else "disable"
             subprocess.run(
-                ["systemctl", "--user", action, "freeflow.service"],
+                ["systemctl", "--user", "disable", "--now", "freeflow.service"],
                 capture_output=True,
                 timeout=3.0
             )
-            logger.info(f"systemctl --user {action} freeflow.service executed")
+            service_file.unlink(missing_ok=True)
+            logger.info("Disabled and removed redundant systemd user service in favor of XDG autostart")
         except Exception as e:
-            logger.debug(f"systemd autostart step skipped or failed: {e}")
+            logger.debug(f"systemd autostart cleanup: {e}")
+
+    # Also make sure app menu entry exists so user can open app from launcher
+    ensure_desktop_launcher()
 
     return True
 

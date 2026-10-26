@@ -6,7 +6,10 @@ Supports browsable common troubleshooting topics and on-demand error flow simula
 """
 
 import logging
+import os
+import shutil
 import webbrowser
+from pathlib import Path
 from typing import Optional, Dict
 
 try:
@@ -15,13 +18,15 @@ try:
     from PyQt6.QtWidgets import (
         QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
         QFrame, QTextEdit, QScrollArea, QWidget, QApplication,
-        QMenu
+        QMenu, QFileDialog, QMessageBox
     )
 except ImportError:
     class QDialog:
         pass
     def pyqtSignal(*args):
         return None
+    QFileDialog = None
+    QMessageBox = None
 
 from core.config import AppConfig
 from core.groq_client import GroqService
@@ -40,16 +45,21 @@ class TroubleshootingDialog(QDialog):
 
     open_settings_requested = pyqtSignal(int)  # tab index (0=Dictation, 1=Audio/Hotkeys, 2=Settings)
     simulate_error_requested = pyqtSignal(str) # error string to simulate on HUD
+    retry_transcription_requested = pyqtSignal()
 
     def __init__(
         self,
         parent=None,
         diagnostic: Optional[ErrorDiagnostic] = None,
-        config: Optional[AppConfig] = None
+        config: Optional[AppConfig] = None,
+        recovery_audio_path: Optional[str] = None,
+        recovery_audio_duration: float = 0.0
     ):
         super().__init__(parent)
         self.diagnostic = diagnostic or get_common_diagnostic()
         self.config = config or AppConfig.load()
+        self.recovery_audio_path = recovery_audio_path
+        self.recovery_audio_duration = recovery_audio_duration
         self._initial_active_error = self.diagnostic if self.diagnostic.is_error else None
 
         self._update_window_title()
@@ -271,6 +281,56 @@ class TroubleshootingDialog(QDialog):
         self.c_layout = QVBoxLayout(self.content_widget)
         self.c_layout.setContentsMargins(0, 0, 0, 0)
         self.c_layout.setSpacing(14)
+
+        # Recovery Audio Card (Surfaced when recorded audio is cached from a failed/interrupted run)
+        if self.recovery_audio_path and os.path.isfile(self.recovery_audio_path):
+            self.recovery_card = QFrame()
+            self.recovery_card.setStyleSheet("""
+                QFrame {
+                    background-color: #062b1f;
+                    border: 1px solid #10b981;
+                    border-radius: 10px;
+                    padding: 14px;
+                }
+            """)
+            rec_layout = QVBoxLayout(self.recovery_card)
+            rec_layout.setSpacing(10)
+
+            mins, secs = divmod(int(self.recovery_audio_duration), 60)
+            file_size_mb = os.path.getsize(self.recovery_audio_path) / (1024 * 1024)
+            dur_str = f"{mins}m {secs:02d}s" if mins > 0 else f"{secs}s"
+
+            lbl_rec_title = QLabel(f"🎙️ Unsaved Audio Recovered ({dur_str} • {file_size_mb:.2f} MB)")
+            lbl_rec_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #a7f3d0;")
+            rec_layout.addWidget(lbl_rec_title)
+
+            lbl_rec_desc = QLabel(
+                "Your last recorded speech was safely preserved. Once you review your connection, "
+                "API key, or settings, you can transcribe it immediately without talking again."
+            )
+            lbl_rec_desc.setWordWrap(True)
+            lbl_rec_desc.setStyleSheet("font-size: 12px; color: #6ee7b7; line-height: 1.4;")
+            rec_layout.addWidget(lbl_rec_desc)
+
+            btn_row = QHBoxLayout()
+            btn_row.setSpacing(10)
+
+            self.btn_retry_transcribe = QPushButton("🔁 Retry Transcription with Saved Audio")
+            self.btn_retry_transcribe.setProperty("class", "PrimaryBtn")
+            self.btn_retry_transcribe.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_retry_transcribe.clicked.connect(self._on_retry_transcribe_clicked)
+            btn_row.addWidget(self.btn_retry_transcribe)
+
+            self.btn_export_audio = QPushButton("💾 Export Audio (.wav)...")
+            self.btn_export_audio.setProperty("class", "SecondaryBtn")
+            self.btn_export_audio.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_export_audio.clicked.connect(self._on_export_audio_clicked)
+            btn_row.addWidget(self.btn_export_audio)
+
+            btn_row.addStretch()
+            rec_layout.addLayout(btn_row)
+
+            self.c_layout.addWidget(self.recovery_card)
 
         # Steps Card
         self.steps_card = QFrame()
@@ -606,3 +666,29 @@ class TroubleshootingDialog(QDialog):
         if not url:
             url = "https://github.com/BheeshamKS/FreeFlow/issues/new"
         webbrowser.open(url)
+
+    def _on_retry_transcribe_clicked(self):
+        if self.retry_transcription_requested:
+            self.retry_transcription_requested.emit()
+        self.accept()
+
+    def _on_export_audio_clicked(self):
+        if not self.recovery_audio_path or not os.path.isfile(self.recovery_audio_path):
+            return
+        if QFileDialog is None:
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Recovered Audio",
+            str(Path.home() / "FreeFlow_Recovered_Audio.wav"),
+            "WAV Audio (*.wav)"
+        )
+        if dest:
+            try:
+                shutil.copy2(self.recovery_audio_path, dest)
+                logger.info(f"Exported recovery audio to {dest}")
+                if QMessageBox:
+                    QMessageBox.information(self, "Audio Saved", f"Successfully exported audio to:\n{dest}")
+            except Exception as e:
+                if QMessageBox:
+                    QMessageBox.warning(self, "Export Failed", f"Could not export audio: {e}")

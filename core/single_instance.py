@@ -19,7 +19,7 @@ except ImportError:
     QLocalSocket = None
 
 logger = logging.getLogger("FreeFlow.SingleInstance")
-SOCKET_NAME = "freeflow_desktop_single_instance_ipc"
+DEFAULT_SOCKET_NAME = "freeflow_desktop_single_instance_ipc"
 
 
 class SingleInstanceGuard(QObject):
@@ -30,44 +30,65 @@ class SingleInstanceGuard(QObject):
 
     activation_requested = pyqtSignal(str) if QObject is not None else None
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, app_id: Optional[str] = None, parent=None):
+        if isinstance(app_id, QObject):
+            super().__init__(app_id)
+            self.socket_name = DEFAULT_SOCKET_NAME
+        else:
+            super().__init__(parent)
+            self.socket_name = str(app_id) if app_id else DEFAULT_SOCKET_NAME
+
         self.server: Optional[QLocalServer] = None
 
     def acquire(self) -> bool:
         """
         Attempt to acquire single-instance lock.
         Returns True if this is the primary instance.
-        Returns False if an instance is already running (and triggers that instance to show).
+        Returns False if an instance is already running.
         """
         if QLocalSocket is None:
             return True
 
         # Test if an existing server is alive
         socket = QLocalSocket()
-        socket.connectToServer(SOCKET_NAME)
+        socket.connectToServer(self.socket_name)
 
         if socket.waitForConnected(500):
-            logger.info("Another instance of FreeFlow is already running. Requesting activation...")
-            socket.write(b"ACTIVATE")
-            socket.flush()
-            socket.waitForBytesWritten(1000)
+            logger.info("Another instance of FreeFlow is already running.")
             socket.disconnectFromServer()
             return False
 
         # Clean up any stale sockets from previous crashes
-        QLocalServer.removeServer(SOCKET_NAME)
+        QLocalServer.removeServer(self.socket_name)
 
         # Start primary IPC server
         self.server = QLocalServer(self)
         self.server.newConnection.connect(self._on_new_connection)
 
-        if not self.server.listen(SOCKET_NAME):
-            logger.warning(f"Could not listen on local socket {SOCKET_NAME}: {self.server.errorString()}")
+        if not self.server.listen(self.socket_name):
+            logger.warning(f"Could not listen on local socket {self.socket_name}: {self.server.errorString()}")
             return True
 
-        logger.info("Single-instance IPC server active.")
+        logger.info(f"Single-instance IPC server active on '{self.socket_name}'.")
         return True
+
+    def send_activation(self, msg: str = "ACTIVATE") -> bool:
+        """Send activation message to running instance."""
+        if QLocalSocket is None:
+            return False
+        try:
+            socket = QLocalSocket()
+            socket.connectToServer(self.socket_name)
+            if socket.waitForConnected(1000):
+                socket.write(msg.encode("utf-8"))
+                socket.flush()
+                socket.waitForBytesWritten(1000)
+                socket.waitForDisconnected(500)
+                logger.info(f"Sent IPC activation signal '{msg}' to running FreeFlow instance.")
+                return True
+        except Exception as e:
+            logger.error(f"Error sending activation IPC: {e}")
+        return False
 
     def _on_new_connection(self):
         """Receive activation request from second instance."""
@@ -78,16 +99,27 @@ class SingleInstanceGuard(QObject):
         if not client_socket:
             return
 
-        if client_socket.waitForReadyRead(500):
-            data = client_socket.readAll().data().decode("utf-8").strip()
-            logger.info(f"Received IPC command: '{data}'")
-            if self.activation_requested:
-                self.activation_requested.emit(data)
+        def handle_read():
+            try:
+                data = client_socket.readAll().data().decode("utf-8", errors="ignore").strip()
+                if data:
+                    logger.info(f"Received IPC command: '{data}'")
+                    if self.activation_requested:
+                        self.activation_requested.emit(data)
+            except Exception as e:
+                logger.error(f"Error reading IPC data: {e}")
+            finally:
+                client_socket.disconnectFromServer()
 
-        client_socket.disconnectFromServer()
+        if client_socket.bytesAvailable() > 0:
+            handle_read()
+        else:
+            client_socket.readyRead.connect(handle_read)
+            if client_socket.waitForReadyRead(800):
+                handle_read()
 
     def cleanup(self):
         """Close server and remove socket file."""
         if self.server:
             self.server.close()
-            QLocalServer.removeServer(SOCKET_NAME)
+            QLocalServer.removeServer(self.socket_name)

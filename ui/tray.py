@@ -37,6 +37,7 @@ class SystemTrayController(QObject):
     check_updates_requested = pyqtSignal() if QObject is not None else None
     troubleshoot_requested = pyqtSignal() if QObject is not None else None
     toggle_recording_requested = pyqtSignal() if QObject is not None else None
+    retry_transcription_requested = pyqtSignal() if QObject is not None else None
     quit_requested = pyqtSignal() if QObject is not None else None
 
     def __init__(self, config: AppConfig, parent=None):
@@ -79,6 +80,12 @@ class SystemTrayController(QObject):
         self.toggle_action = QAction(f"Start Recording ({hotkey_str})", self.menu)
         self.toggle_action.triggered.connect(self._on_toggle_clicked)
         self.menu.addAction(self.toggle_action)
+
+        # Retry recovery audio action (visible when unsaved/failed audio is cached)
+        self.retry_action = QAction("🔁 Retry Last Audio Transcription", self.menu)
+        self.retry_action.triggered.connect(self._on_retry_clicked)
+        self.retry_action.setVisible(False)
+        self.menu.addAction(self.retry_action)
 
         # Settings
         self.settings_action = QAction("Preferences / Settings...", self.menu)
@@ -221,11 +228,40 @@ class SystemTrayController(QObject):
             expire_ms=6000
         )
 
-    def _on_tray_activated(self, reason):
-        """Handle single/double clicks on tray icon."""
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            if self.open_settings_requested:
-                self.open_settings_requested.emit()
+    def notify_warning(self, warning_message: str):
+        """Show warning notification."""
+        self.send_desktop_notification(
+            title="FreeFlow Warning",
+            message=warning_message,
+            icon="dialog-warning",
+            urgency="normal",
+            expire_ms=4000
+        )
+
+    def notify_info(self, info_message: str):
+        """Show informational notification."""
+        self.send_desktop_notification(
+            title="FreeFlow",
+            message=info_message,
+            icon="dialog-information",
+            urgency="low",
+            expire_ms=3000
+        )
+
+    def set_recovery_audio_available(self, available: bool, duration: float = 0.0):
+        """Show or hide retry audio action in tray menu."""
+        if hasattr(self, "retry_action") and self.retry_action:
+            if available:
+                mins, secs = divmod(int(duration), 60)
+                dur_str = f" ({mins}m {secs:02d}s)" if duration > 0 else ""
+                self.retry_action.setText(f"🔁 Retry Last Audio Transcription{dur_str}")
+                self.retry_action.setVisible(True)
+            else:
+                self.retry_action.setVisible(False)
+
+    def _on_retry_clicked(self):
+        if self.retry_transcription_requested:
+            self.retry_transcription_requested.emit()
 
     def _on_toggle_clicked(self):
         if self.toggle_recording_requested:

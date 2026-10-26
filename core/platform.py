@@ -56,8 +56,13 @@ def get_config_dir() -> Path:
         else:
             path = Path.home() / ".config" / "freeflow"
 
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except Exception:
+        fallback = Path(tempfile.gettempdir()) / "freeflow_config"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
 
 def get_history_file() -> Path:
@@ -68,3 +73,16 @@ def get_history_file() -> Path:
 def get_audio_temp_path() -> str:
     """Return safe cross-platform temporary WAV audio buffer path."""
     return str(Path(tempfile.gettempdir()) / "freeflow_audio.wav")
+
+
+def get_recovery_audio_path() -> Path:
+    """Return persistent cross-platform path to temporary audio recovery buffer."""
+    try:
+        cache_dir = get_config_dir() / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / "recovery_recording.wav"
+    except Exception:
+        fallback_cache = Path(tempfile.gettempdir()) / "freeflow_cache"
+        fallback_cache.mkdir(parents=True, exist_ok=True)
+        return fallback_cache / "recovery_recording.wav"
+

@@ -32,6 +32,7 @@ class RecordingHUD(QWidget):
     """
 
     solutions_requested = pyqtSignal(str)
+    retry_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -50,7 +51,7 @@ class RecordingHUD(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        self.setFixedSize(380, 58)
+        self.setFixedSize(420, 58)
 
         # State management
         self.state = "hidden"
@@ -58,6 +59,7 @@ class RecordingHUD(QWidget):
         self._current_audio_level = 0.0
         self._record_start_time = 0.0
         self._last_error_details = ""
+        self.recovery_available = False
 
         # Dragging support
         self._drag_pos: Optional[QPoint] = None
@@ -86,9 +88,15 @@ class RecordingHUD(QWidget):
             y = int(geom.bottom() - self.height() - 70)
             self.move(x, y)
 
-    def set_error(self, message: str = "Transcription Failed", error_details: str = ""):
-        """Helper to transition HUD directly to error state with diagnostic info."""
+    def set_error(
+        self,
+        message: str = "Transcription Failed",
+        error_details: str = "",
+        recovery_available: bool = False
+    ):
+        """Helper to transition HUD directly to error state with diagnostic info and retry affordance."""
         self._last_error_details = error_details
+        self.recovery_available = recovery_available
         self.set_state("error", message=message)
 
     def set_state(self, new_state: str, message: Optional[str] = None):
@@ -179,8 +187,18 @@ class RecordingHUD(QWidget):
     # --------------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent):
         if self.state == "error":
-            # Clicking on the error capsule directly opens the Troubleshooting & Solutions dialog
-            self.solutions_requested.emit(self._last_error_details)
+            pos = event.position()
+            if self.recovery_available:
+                retry_rect = QRectF(float(self.width() - 204.0), 16.0, 84.0, 26.0)
+                if retry_rect.contains(pos):
+                    if self.retry_requested:
+                        self.retry_requested.emit()
+                    event.accept()
+                    return
+
+            # Clicking solutions or elsewhere on error capsule opens troubleshooting dialog
+            if self.solutions_requested:
+                self.solutions_requested.emit(self._last_error_details)
             self.hide_hud()
             event.accept()
             return
@@ -280,8 +298,9 @@ class RecordingHUD(QWidget):
         painter.setFont(font_main)
 
         if self.state == "error":
-            # Confine error text so it doesn't collide with the "View Solutions" pill
-            text_rect = QRectF(48, 12, float(self.width() - 48 - 148), 34)
+            # Confine error text so it doesn't collide with action pills
+            right_margin = 216 if self.recovery_available else 148
+            text_rect = QRectF(48, 12, float(self.width() - 48 - right_margin), 34)
             painter.drawText(
                 text_rect,
                 int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
@@ -331,18 +350,48 @@ class RecordingHUD(QWidget):
             painter.drawLine(cx - 2, cy + 4, cx + 6, cy - 4)
 
         elif self.state == "error":
-            # Interactive "View Solutions →" pill button on the right side
-            btn_w = 126.0
-            btn_h = 26.0
-            btn_x = float(self.width() - btn_w - 14.0)
-            btn_y = float((self.height() - btn_h) / 2.0)
-            btn_rect = QRectF(btn_x, btn_y, btn_w, btn_h)
-
-            painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
-            painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
-            painter.drawRoundedRect(btn_rect, 13.0, 13.0)
-
-            painter.setPen(QColor(254, 202, 202))
             font_btn = QFont("Inter, Ubuntu, Cantarell, Sans-Serif", 9, QFont.Weight.DemiBold)
             painter.setFont(font_btn)
-            painter.drawText(btn_rect, int(Qt.AlignmentFlag.AlignCenter), "View Solutions →")
+
+            if self.recovery_available:
+                # 1. "🔁 Retry" button
+                retry_w = 84.0
+                retry_h = 26.0
+                retry_x = float(self.width() - 204.0)
+                retry_y = float((self.height() - retry_h) / 2.0)
+                retry_rect = QRectF(retry_x, retry_y, retry_w, retry_h)
+
+                painter.setBrush(QBrush(QColor(16, 185, 129, 45)))
+                painter.setPen(QPen(QColor(16, 185, 129, 210), 1.2))
+                painter.drawRoundedRect(retry_rect, 13.0, 13.0)
+
+                painter.setPen(QColor(167, 243, 208))
+                painter.drawText(retry_rect, int(Qt.AlignmentFlag.AlignCenter), "🔁 Retry")
+
+                # 2. "Solutions →" button
+                sol_w = 100.0
+                sol_h = 26.0
+                sol_x = float(self.width() - sol_w - 12.0)
+                sol_y = retry_y
+                sol_rect = QRectF(sol_x, sol_y, sol_w, sol_h)
+
+                painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
+                painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
+                painter.drawRoundedRect(sol_rect, 13.0, 13.0)
+
+                painter.setPen(QColor(254, 202, 202))
+                painter.drawText(sol_rect, int(Qt.AlignmentFlag.AlignCenter), "Solutions →")
+            else:
+                # Single "View Solutions →" button
+                btn_w = 126.0
+                btn_h = 26.0
+                btn_x = float(self.width() - btn_w - 14.0)
+                btn_y = float((self.height() - btn_h) / 2.0)
+                btn_rect = QRectF(btn_x, btn_y, btn_w, btn_h)
+
+                painter.setBrush(QBrush(QColor(239, 68, 68, 48)))
+                painter.setPen(QPen(QColor(239, 68, 68, 190), 1.2))
+                painter.drawRoundedRect(btn_rect, 13.0, 13.0)
+
+                painter.setPen(QColor(254, 202, 202))
+                painter.drawText(btn_rect, int(Qt.AlignmentFlag.AlignCenter), "View Solutions →")
