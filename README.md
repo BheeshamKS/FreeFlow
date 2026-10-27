@@ -1,6 +1,8 @@
-# FreeFlow
-
 <div align="center">
+
+<img src="assets/icon.png" width="96" height="96" alt="FreeFlow Logo" />
+
+# FreeFlow
 
 **Fast, private voice dictation for Linux, Windows, macOS, and Android**  
 *Press a shortcut, speak naturally, and text appears instantly at your cursor.*

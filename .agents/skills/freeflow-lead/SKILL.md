@@ -50,15 +50,19 @@ In **every prompt and user task**, the agent must systematically activate, consu
 ### Cumulative Release Log
 
 #### Version 1.2.2 (2026-10-27) — Audio Recovery Buffer, Background Boot Startup & Launcher Activation
+- **Terminal & Application Menu Launch Activation**:
+  - Removed faulty `INVOCATION_ID` check in `app.py` that incorrectly identified manual terminal and desktop launcher invocations under systemd user sessions (GNOME, Pop!_OS, KDE) as boot autostart instances.
+  - Ensured manual launches consistently present the main window immediately or forward the `ACTIVATE` IPC signal to bring background daemons to the foreground.
+  - Resolved an `IndentationError` in `ui/onboarding.py` caused by a duplicate string delimiter.
 - **Silent Background Startup on Boot**:
   - Eliminated dual-autostart race condition on Linux where both `freeflow.service` (systemd) and `freeflow.desktop` (XDG autostart) launched concurrently at login, causing the second instance to erroneously activate the first instance's window.
   - Hardened single-instance guard so any instance launched with `--autostart` or `--minimized` exits silently without sending an `ACTIVATE` signal to the running daemon.
   - Cleaned up redundant systemd user services in favor of standard XDG desktop autostart specification.
-- **Application Menu & Launcher Activation**:
-  - Fixed issue where clicking FreeFlow from the desktop application menu / launcher while running in the background did not present the app.
-  - Implemented `send_activation()` in `SingleInstanceGuard` and ensured `SingleInstanceGuard` forwards the `ACTIVATE` command over local socket IPC.
-  - Enhanced `show_main_window()` to restore minimized windows (`showNormal()`), clear minimized window state, set active focus, and raise to foreground across Linux, Windows, and macOS.
-  - Added automatic installation of `~/.local/share/applications/freeflow.desktop` so FreeFlow is always discoverable in desktop application menus.
+- **Brand Logo Standardization & FreeFlow Pocket Visual Parity**:
+  - Standardized official logo in `assets/logo.svg` featuring transparent background and dynamic cyan-to-azure flow pulses (`#32FFE4` to `#0072DA`).
+  - Rendered high-resolution transparent icons (`assets/icon.png`, `assets/logo.png`, and multi-res `assets/icon.ico`) for window icons, desktop docks, and taskbar shells while preserving microphone recording glyphs.
+  - Defined universal design tokens in `core/theme.py` and documented system in `DESIGN.md` matching FreeFlow Pocket (Android): pitch-black obsidian (`#000000`), elevated surfaces (`#0E0E12`), card elevation (`#18181C`), hairline borders (`#26262E`), signature Electric Azure (`#5AB4FF`), emerald recording (`#00E676`), and vivid violet (`#D500F9`).
+  - Added official brand logo and dedicated **FreeFlow for Android (FreeFlow Pocket)** companion section to `README.md`.
 - **Taskbar / System Tray Click Behavior**:
   - Resolved duplicate `_on_tray_activated` event handler in `SystemTrayController` that previously routed double-clicks to preferences instead of the main app.
   - Standardized tray activation: Double-clicking and single-clicking the system tray icon now consistently opens and presents the FreeFlow Hub window, while right-clicking opens the default context menu.
@@ -70,7 +74,7 @@ In **every prompt and user task**, the agent must systematically activate, consu
     - **Troubleshooting & Solutions Dialog**: Dedicated **Saved Audio Recovered** card displaying recording duration and file size, with direct `[🔁 Retry Transcription Now]` and `[💾 Export Audio (.wav)...]` actions.
     - **System Tray Menu**: Dynamic `🔁 Retry Last Audio Transcription (Mm SSs)...` context menu action.
     - **Dashboard Hero Card**: Obsidian emerald retry button appearing immediately under the Voice Orb when recovery audio is cached.
-- **Quality Gate**: 37 automated unit and integration tests passing.
+- **Quality Gate**: 41 automated unit and integration tests passing.
 
 #### Version 1.2.1 (2026-10-23) — Diagnostics, View Solutions & Smart Text Box Detection
 - **Common Troubleshooting & Help Guide**:
