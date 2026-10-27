@@ -358,7 +358,6 @@ class OnboardingWizard(QDialog):
                 border-color: #3b9fff;
             }}
         """)
-        """)
         self.btn_next.clicked.connect(self._on_next)
         layout.addWidget(self.btn_next)
 

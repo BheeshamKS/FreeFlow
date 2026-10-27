@@ -586,6 +586,13 @@ class TestSingleInstanceAndLauncher(unittest.TestCase):
             self.assertNotIn("--autostart", content)
             self.assertNotIn("--minimized", content)
 
+    def test_onboarding_wizard_import_and_instantiation(self):
+        from ui.onboarding import OnboardingWizard
+        cfg = AppConfig(groq_api_key="gsk_test_key_123")
+        wiz = OnboardingWizard(cfg)
+        self.assertIsNotNone(wiz)
+        self.assertEqual(wiz.current_step, 0)
+
 
 class TestThemeAndFreeFlowPocketIntegration(unittest.TestCase):
     """Test unified design tokens, assets standardization, and FreeFlow Pocket documentation."""

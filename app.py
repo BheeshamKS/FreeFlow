@@ -90,9 +90,9 @@ class FreeFlowApplication(QObject):
         self.guard = SingleInstanceGuard(self.qapp)
         self.guard.activation_requested.connect(self.on_activation_requested)
         if not self.guard.acquire():
-            # If launched during boot/login or with --minimized / --autostart flag, DO NOT send activation!
-            is_boot = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv) or ("--minimized" in sys.argv)
-            if start_minimized or is_boot:
+            # If launched during boot/login or with explicit autostart/minimized flags, DO NOT send activation!
+            is_boot_autostart = is_autostart or ("--autostart" in sys.argv) or ("--minimized" in sys.argv) or start_minimized
+            if is_boot_autostart:
                 logger.info("FreeFlow background/autostart instance detected already running daemon. Exiting silently.")
                 sys.exit(0)
             logger.info("Another instance of FreeFlow is already running. Forwarding activation to foreground window.")
@@ -148,15 +148,13 @@ class FreeFlowApplication(QObject):
             QTimer.singleShot(150, self.open_onboarding_wizard)
         else:
             # Check if launched automatically on graphical system login / boot
-            is_boot_startup = is_autostart or bool(os.environ.get("INVOCATION_ID")) or ("--autostart" in sys.argv) or ("--minimized" in sys.argv)
-            if start_minimized:
-                should_show = False
-            elif is_boot_startup:
-                # If started automatically on boot, respect start_minimized setting!
-                should_show = not self.config.start_minimized
+            is_boot_startup = is_autostart or ("--autostart" in sys.argv) or ("--minimized" in sys.argv) or start_minimized
+            if is_boot_startup:
+                # If started automatically on boot or with minimized flag, respect start_minimized setting!
+                should_show = not self.config.start_minimized and not start_minimized
                 logger.info(f"Launched on boot/login. start_minimized={self.config.start_minimized} -> should_show={should_show}")
             else:
-                # Normal manual launch by user clicking app
+                # Normal manual launch by user clicking app in menu or running in terminal
                 should_show = True
 
             if should_show:
