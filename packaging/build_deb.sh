@@ -69,7 +69,7 @@ Version: ${VERSION}
 Section: utils
 Priority: optional
 Architecture: ${ARCH}
-Maintainer: BheeshamKS <bheehamkumarsajnani3@gmail.com>
+Maintainer: BheeshamKS <bheeshamkumarsajnani3@gmail.com>
 Depends: libportaudio2, libnotify-bin, xclip, xdotool
 Recommends: wl-clipboard, wtype
 Description: Sub-second voice dictation for Linux desktops

@@ -126,8 +126,8 @@ In **every prompt and user task**, the agent must systematically activate, consu
 
 ### Git Identity & Author Verification
 All commits in this repository must strictly adhere to:
-- **Author**: `BheeshamKS <bheehamkumarsajnani3@gmail.com>`
-- **Command Flag**: `--author="BheeshamKS <bheehamkumarsajnani3@gmail.com>"`
+- **Author**: `BheeshamKS <bheeshamkumarsajnani3@gmail.com>`
+- **Command Flag**: `--author="BheeshamKS <bheeshamkumarsajnani3@gmail.com>"`
 
 ### Security & Secret Protection
 - Never hardcode or display user API keys. Always redact strings matching `gsk_[a-zA-Z0-9_-]+` to `gsk_<REDACTED_API_KEY>`.

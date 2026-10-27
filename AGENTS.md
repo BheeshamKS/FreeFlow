@@ -29,5 +29,5 @@ This repository is governed by the primary orchestrator skill defined at [`.agen
 
 3. **Author & Commit Identity:**
    Always author Git commits with:
-   `BheeshamKS <bheehamkumarsajnani3@gmail.com>`
-   using `--author="BheeshamKS <bheehamkumarsajnani3@gmail.com>"`.
+   `BheeshamKS <bheeshamkumarsajnani3@gmail.com>`
+   using `--author="BheeshamKS <bheeshamkumarsajnani3@gmail.com>"`.
